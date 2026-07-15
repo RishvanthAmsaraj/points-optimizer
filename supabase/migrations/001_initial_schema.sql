@@ -15,7 +15,7 @@ CREATE TABLE profiles (
 -- Credit cards database
 CREATE TABLE cards (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
+  name TEXT NOT NULL UNIQUE,
   issuer TEXT NOT NULL,
   network TEXT,
   annual_fee INTEGER,
@@ -43,7 +43,7 @@ CREATE TABLE user_cards (
 -- Loyalty programs (airlines, hotels, banks)
 CREATE TABLE loyalty_programs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
+  name TEXT NOT NULL UNIQUE,
   type TEXT CHECK (type IN ('airline', 'hotel', 'bank')),
   alliance TEXT,
   point_valuation_cents NUMERIC(4,2),
