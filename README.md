@@ -40,6 +40,8 @@ The app runs fully in mock mode with zero external API keys — see `docs/DATA_S
 
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system design, the optimization engine, security model
 - [`docs/DATA_SOURCES.md`](./docs/DATA_SOURCES.md) — where every piece of data comes from, costs, legal constraints, ops cadence
+- [`docs/API_KEYS.md`](./docs/API_KEYS.md) — every account to create, verified free tiers, setup order
+- [`docs/TESTING.md`](./docs/TESTING.md) — exact test scenarios with expected outcomes
 - [`docs/ROADMAP.md`](./docs/ROADMAP.md) — phased plan, monetization, risks
 
 ## Status

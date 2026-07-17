@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     let providerOptions: ProviderAwardOption[] | null = null;
 
     const { data: cached } = await supabase
-      .from("award_searches")
+      .from("award_cache")
       .select("results")
       .eq("origin", validated.origin)
       .eq("destination", validated.destination)
@@ -93,14 +93,13 @@ export async function POST(request: Request) {
       const expiresAt = new Date(
         Date.now() + AWARD_CACHE_HOURS * 3600 * 1000
       ).toISOString();
-      await supabase.from("award_searches").insert({
-        user_id: user.id,
+      await supabase.from("award_cache").insert({
         origin: validated.origin,
         destination: validated.destination,
         departure_date: validated.departureDate,
-        return_date: validated.returnDate ?? null,
         cabin: validated.cabin,
         results: providerOptions as unknown as never,
+        provider: awardProvider.name,
         expires_at: expiresAt,
       });
     }

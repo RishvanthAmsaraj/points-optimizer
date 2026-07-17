@@ -1,6 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { RouteStop } from "@/components/route-line";
 
 type StepType = "use_balance" | "transfer" | "book" | "portal";
 
@@ -36,80 +43,60 @@ const CABINS = [
   { value: "first", label: "First" },
 ] as const;
 
-function StepCard({ step, index }: { step: PlaybookStep; index: number }) {
+function StepBody({ step }: { step: PlaybookStep }) {
   const d = step.details;
+  const link = (href: unknown, label: string) =>
+    typeof href === "string" && href ? (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 inline-block text-sm text-primary hover:underline"
+      >
+        {label} →
+      </a>
+    ) : null;
+
   return (
-    <div className="rounded-lg bg-secondary p-4">
-      <div className="flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
-          {index + 1}
-        </span>
-        <div className="min-w-0">
-          <p className="font-medium">{step.description}</p>
-
-          {step.type === "transfer" && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {d.pointsArriving != null &&
-                `${Number(d.pointsArriving).toLocaleString()} points arrive`}
-              {d.blockBonus ? ` (includes ${d.blockBonus})` : null}
-              {d.timing ? ` · ${String(d.timing)}` : null}
-              {d.reversible === false ? " · not reversible" : null}
-            </p>
+    <div>
+      <p className="font-medium leading-snug">{step.description}</p>
+      {step.type === "transfer" && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          {d.pointsArriving != null && (
+            <span className="font-mono">
+              {Number(d.pointsArriving).toLocaleString()}
+            </span>
           )}
-
-          {step.type === "book" && d.milesRequired != null && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {Number(d.milesRequired).toLocaleString()} miles + $
-              {Number(d.taxesAndFees).toLocaleString()} taxes and fees
-            </p>
-          )}
-
-          {step.type === "portal" && d.note != null && (
-            <p className="text-sm text-muted-foreground mt-1">{String(d.note)}</p>
-          )}
-
-          {typeof d.transferUrl === "string" && d.transferUrl && (
-            <a
-              href={d.transferUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline mt-2 inline-block"
-            >
-              Open transfer page →
-            </a>
-          )}
-          {typeof d.bookingUrl === "string" && d.bookingUrl && (
-            <a
-              href={d.bookingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline mt-2 inline-block"
-            >
-              Open booking page →
-            </a>
-          )}
-          {typeof d.portalUrl === "string" && d.portalUrl && (
-            <a
-              href={d.portalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline mt-2 inline-block"
-            >
-              Open travel portal →
-            </a>
-          )}
-        </div>
-      </div>
+          {d.pointsArriving != null && " points arrive"}
+          {typeof d.blockBonus === "string" && ` · includes ${d.blockBonus}`}
+          {d.timing ? ` · ${String(d.timing)}` : null}
+          {d.reversible === false ? " · not reversible" : null}
+        </p>
+      )}
+      {step.type === "book" && d.milesRequired != null && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          <span className="font-mono">
+            {Number(d.milesRequired).toLocaleString()}
+          </span>{" "}
+          miles + ${Number(d.taxesAndFees).toLocaleString()} taxes and fees
+        </p>
+      )}
+      {step.type === "portal" && d.note != null && (
+        <p className="mt-1 text-sm text-muted-foreground">{String(d.note)}</p>
+      )}
+      {link(d.transferUrl, "Open transfer page")}
+      {link(d.bookingUrl, "Open booking page")}
+      {link(d.portalUrl, "Open travel portal")}
     </div>
   );
 }
 
-function PathSummary({ path }: { path: PaymentPath }) {
+function PathMeta({ path }: { path: PaymentPath }) {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm">
+    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
       {path.cpp > 0 && (
-        <span className="text-green-600 font-medium">
-          {path.cpp.toFixed(2)}¢ per point
+        <span className="font-mono font-medium text-success">
+          {path.cpp.toFixed(2)}¢ / pt
         </span>
       )}
       {path.cashAvoided > 0 && (
@@ -117,9 +104,9 @@ function PathSummary({ path }: { path: PaymentPath }) {
           ${path.cashAvoided.toLocaleString()} cash avoided
         </span>
       )}
-      <span className="text-muted-foreground">
-        {path.totalPoints.toLocaleString()} points
-        {path.totalCash > 0 && ` + $${path.totalCash.toLocaleString()} fees`}
+      <span className="font-mono text-muted-foreground">
+        {path.totalPoints.toLocaleString()} pts
+        {path.totalCash > 0 && ` + $${path.totalCash.toLocaleString()}`}
       </span>
     </div>
   );
@@ -167,240 +154,239 @@ export default function PlaybookPage() {
     }
   }
 
-  const inputClass =
-    "w-full rounded-md border border-input bg-background px-3 py-2";
-
   return (
-    <main className="min-h-screen p-4 sm:p-8">
+    <main className="min-h-screen px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold mb-2">Build your playbook</h1>
-        <p className="text-muted-foreground mb-8">
-          Tell us the trip. We'll map every transfer chain your points can
-          reach and rank the routes by value.
+        <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+          Playbook
+        </p>
+        <h1 className="mt-1 font-display text-3xl sm:text-4xl">
+          Name the trip. We&rsquo;ll draw the route.
+        </h1>
+        <p className="mt-3 max-w-2xl text-muted-foreground">
+          We map every transfer chain your points can reach — portals included
+          as the honest baseline — and rank the routes by real value.
         </p>
 
-        <form
-          onSubmit={generatePlaybook}
-          className="rounded-lg border p-4 sm:p-6 mb-8"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label htmlFor="origin" className="block text-sm font-medium mb-1">
-                From
-              </label>
-              <input
-                id="origin"
-                type="text"
-                placeholder="JFK"
-                value={query.origin}
-                onChange={(e) =>
-                  setQuery({ ...query, origin: e.target.value.toUpperCase() })
-                }
-                className={inputClass}
-                required
-                maxLength={3}
-                pattern="[A-Za-z]{3}"
-                title="3-letter airport code"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="destination"
-                className="block text-sm font-medium mb-1"
-              >
-                To
-              </label>
-              <input
-                id="destination"
-                type="text"
-                placeholder="NRT"
-                value={query.destination}
-                onChange={(e) =>
-                  setQuery({
-                    ...query,
-                    destination: e.target.value.toUpperCase(),
-                  })
-                }
-                className={inputClass}
-                required
-                maxLength={3}
-                pattern="[A-Za-z]{3}"
-                title="3-letter airport code"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label
-                htmlFor="departure"
-                className="block text-sm font-medium mb-1"
-              >
-                Departure
-              </label>
-              <input
-                id="departure"
-                type="date"
-                value={query.departureDate}
-                onChange={(e) =>
-                  setQuery({ ...query, departureDate: e.target.value })
-                }
-                className={inputClass}
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="return" className="block text-sm font-medium mb-1">
-                Return (optional)
-              </label>
-              <input
-                id="return"
-                type="date"
-                value={query.returnDate}
-                onChange={(e) =>
-                  setQuery({ ...query, returnDate: e.target.value })
-                }
-                className={inputClass}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label htmlFor="cabin" className="block text-sm font-medium mb-1">
-                Cabin
-              </label>
-              <select
-                id="cabin"
-                value={query.cabin}
-                onChange={(e) =>
-                  setQuery({
-                    ...query,
-                    cabin: e.target.value as typeof query.cabin,
-                  })
-                }
-                className={inputClass}
-              >
-                {CABINS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="passengers"
-                className="block text-sm font-medium mb-1"
-              >
-                Passengers
-              </label>
-              <input
-                id="passengers"
-                type="number"
-                min={1}
-                max={9}
-                value={query.passengers}
-                onChange={(e) =>
-                  setQuery({
-                    ...query,
-                    passengers: Math.max(1, Math.min(9, Number(e.target.value))),
-                  })
-                }
-                className={inputClass}
-              />
-            </div>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-primary px-4 py-3 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-medium"
-          >
-            {loading ? "Searching award space…" : "Build my playbook"}
-          </button>
-        </form>
+        <Card className="mt-8">
+          <CardContent className="p-5 sm:p-6">
+            <form onSubmit={generatePlaybook}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="origin">From</Label>
+                  <Input
+                    id="origin"
+                    placeholder="JFK"
+                    value={query.origin}
+                    onChange={(e) =>
+                      setQuery({ ...query, origin: e.target.value.toUpperCase() })
+                    }
+                    required
+                    maxLength={3}
+                    pattern="[A-Za-z]{3}"
+                    title="3-letter airport code"
+                    className="font-mono"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="destination">To</Label>
+                  <Input
+                    id="destination"
+                    placeholder="NRT"
+                    value={query.destination}
+                    onChange={(e) =>
+                      setQuery({
+                        ...query,
+                        destination: e.target.value.toUpperCase(),
+                      })
+                    }
+                    required
+                    maxLength={3}
+                    pattern="[A-Za-z]{3}"
+                    title="3-letter airport code"
+                    className="font-mono"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="departure">Departure</Label>
+                  <Input
+                    id="departure"
+                    type="date"
+                    value={query.departureDate}
+                    onChange={(e) =>
+                      setQuery({ ...query, departureDate: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="return">Return (optional)</Label>
+                  <Input
+                    id="return"
+                    type="date"
+                    value={query.returnDate}
+                    onChange={(e) =>
+                      setQuery({ ...query, returnDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="cabin">Cabin</Label>
+                  <Select
+                    id="cabin"
+                    value={query.cabin}
+                    onChange={(e) =>
+                      setQuery({
+                        ...query,
+                        cabin: e.target.value as typeof query.cabin,
+                      })
+                    }
+                  >
+                    {CABINS.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="passengers">Passengers</Label>
+                  <Input
+                    id="passengers"
+                    type="number"
+                    min={1}
+                    max={9}
+                    value={query.passengers}
+                    onChange={(e) =>
+                      setQuery({
+                        ...query,
+                        passengers: Math.max(
+                          1,
+                          Math.min(9, Number(e.target.value))
+                        ),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              <Button type="submit" disabled={loading} className="mt-5 w-full" size="lg">
+                {loading ? "Searching award space…" : "Build my playbook"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
         {error && (
-          <div className="rounded-lg border border-destructive p-4 mb-8 text-destructive">
+          <div className="mt-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
             {error}
           </div>
         )}
 
         {result && (
-          <div className="space-y-6">
-            <div className="rounded-lg border-2 border-primary p-4 sm:p-6">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-2xl">🏆</span>
-                <h2 className="text-xl font-bold">Best route to book</h2>
+          <div className="mt-8 space-y-8">
+            {/* Best route — the boarding pass */}
+            <div className="rounded-lg border border-primary/40 bg-card p-5 shadow-[0_0_48px_-16px_hsl(var(--primary)/0.35)] sm:p-8">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                  Best route to book
+                </span>
+                <Badge tone="gold">
+                  {result.consideredCount} route
+                  {result.consideredCount === 1 ? "" : "s"} considered
+                </Badge>
               </div>
-              <p className="text-lg font-semibold">{result.best.name}</p>
-              <PathSummary path={result.best} />
+              <h2 className="font-display text-2xl leading-snug sm:text-3xl">
+                {result.best.name}
+              </h2>
+              <PathMeta path={result.best} />
 
               {result.best.warnings.length > 0 && (
-                <div className="mt-4 rounded-md border border-amber-400 bg-amber-50 p-3">
+                <div className="mt-5 space-y-1 rounded-md border border-amber-400/40 bg-amber-400/10 p-4">
                   {result.best.warnings.map((w, i) => (
-                    <p key={i} className="text-sm text-amber-800">
+                    <p key={i} className="text-sm text-amber-200">
                       ⚠ {w}
                     </p>
                   ))}
                 </div>
               )}
 
-              <div className="space-y-3 mt-4">
+              <div className="mt-6">
                 {result.best.steps.map((step, index) => (
-                  <StepCard key={index} step={step} index={index} />
+                  <RouteStop
+                    key={index}
+                    index={index}
+                    isLast={index === result.best.steps.length - 1}
+                  >
+                    <StepBody step={step} />
+                  </RouteStop>
                 ))}
               </div>
 
-              {result.best.pointsBreakdown.length > 1 && (
-                <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
-                  Points used:{" "}
+              <div className="ticket-perforation mt-6 flex flex-wrap items-center justify-between gap-2 pt-5">
+                <div className="text-sm text-muted-foreground">
                   {result.best.pointsBreakdown
-                    .map(
-                      (b) => `${b.amount.toLocaleString()} ${b.programName}`
-                    )
+                    .map((b) => `${b.amount.toLocaleString()} ${b.programName}`)
                     .join(" · ")}
                 </div>
-              )}
+                {result.best.cpp > 0 && (
+                  <div className="font-mono text-xl text-success">
+                    {result.best.cpp.toFixed(2)}¢ / pt
+                  </div>
+                )}
+              </div>
             </div>
 
+            {/* Alternatives */}
             {result.alternatives.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold mb-4">
+                <h3 className="font-display text-xl">
                   Other routes we considered
                 </h3>
-                <div className="space-y-3">
+                <div className="mt-4 space-y-3">
                   {result.alternatives.map((alt) => (
-                    <div key={alt.id} className="rounded-lg border p-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedAlt(expandedAlt === alt.id ? null : alt.id)
-                        }
-                        className="w-full text-left"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-medium">{alt.name}</p>
-                            <PathSummary path={alt} />
+                    <Card key={alt.id}>
+                      <CardContent className="p-4 sm:p-5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedAlt(
+                              expandedAlt === alt.id ? null : alt.id
+                            )
+                          }
+                          className="w-full text-left"
+                          aria-expanded={expandedAlt === alt.id}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-medium">{alt.name}</p>
+                              <PathMeta path={alt} />
+                            </div>
+                            <span className="shrink-0 text-sm text-muted-foreground">
+                              {expandedAlt === alt.id ? "Hide" : "Steps"}
+                            </span>
                           </div>
-                          <span className="text-muted-foreground shrink-0">
-                            {expandedAlt === alt.id ? "Hide steps" : "Show steps"}
-                          </span>
-                        </div>
-                      </button>
-                      {expandedAlt === alt.id && (
-                        <div className="space-y-3 mt-4">
-                          {alt.steps.map((step, index) => (
-                            <StepCard key={index} step={step} index={index} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                        </button>
+                        {expandedAlt === alt.id && (
+                          <div className="mt-5 border-t border-border/70 pt-5">
+                            {alt.steps.map((step, index) => (
+                              <RouteStop
+                                key={index}
+                                index={index}
+                                isLast={index === alt.steps.length - 1}
+                              >
+                                <StepBody step={step} />
+                              </RouteStop>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground border-t pt-4">
+            <p className="border-t border-border/70 pt-4 text-xs leading-relaxed text-muted-foreground">
               {result.meta.disclaimer}
             </p>
           </div>

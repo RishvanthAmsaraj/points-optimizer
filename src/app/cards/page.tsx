@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
-interface Card {
+interface CreditCard {
   id: string;
   name: string;
   issuer: string;
@@ -16,11 +22,11 @@ interface UserCard {
   id: string;
   card_id: string;
   date_opened: string;
-  cards: Card;
+  cards: CreditCard;
 }
 
 export default function CardsPage() {
-  const [availableCards, setAvailableCards] = useState<Card[]>([]);
+  const [availableCards, setAvailableCards] = useState<CreditCard[]>([]);
   const [userCards, setUserCards] = useState<UserCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState("");
@@ -28,11 +34,7 @@ export default function CardsPage() {
 
   const supabase = createClient();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     const { data: allCards } = await supabase
       .from("cards")
       .select("*")
@@ -45,9 +47,14 @@ export default function CardsPage() {
       .eq("is_active", true);
 
     setAvailableCards(allCards || []);
-    setUserCards(myCards || []);
+    setUserCards((myCards as unknown as UserCard[]) || []);
     setLoading(false);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   async function addCard(e: React.FormEvent) {
     e.preventDefault();
@@ -79,90 +86,115 @@ export default function CardsPage() {
 
   const userCardIds = new Set(userCards.map((uc) => uc.card_id));
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  if (loading) {
+    return (
+      <main className="min-h-screen px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-4xl">
+          <div className="h-8 w-64 animate-pulse rounded bg-secondary" />
+          <div className="mt-8 h-32 animate-pulse rounded-lg bg-secondary" />
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen p-8">
+    <main className="min-h-screen px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold mb-8">Your Card Wallet</h1>
+        <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+          Wallet
+        </p>
+        <h1 className="mt-1 font-display text-3xl sm:text-4xl">Your cards</h1>
+        <p className="mt-3 max-w-2xl text-muted-foreground">
+          Just the names — never numbers. Knowing which cards you hold tells
+          the engine which transfer partners and portals you can use.
+        </p>
 
-        {/* Add Card Form */}
-        <div className="rounded-lg border p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4">Add a Card</h2>
-          <form onSubmit={addCard} className="flex gap-4">
-            <select
-              value={selectedCard}
-              onChange={(e) => setSelectedCard(e.target.value)}
-              className="flex-1 rounded-md border border-input bg-background px-3 py-2"
-              required
+        <Card className="mt-8">
+          <CardContent className="p-5 sm:p-6">
+            <h2 className="mb-4 font-display text-xl">Add a card</h2>
+            <form
+              onSubmit={addCard}
+              className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_180px_auto] sm:items-end"
             >
-              <option value="">Select Card</option>
-              {availableCards
-                .filter((card) => !userCardIds.has(card.id))
-                .map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.name} (${card.annual_fee}/yr)
-                  </option>
-                ))}
-            </select>
-            <input
-              type="date"
-              value={dateOpened}
-              onChange={(e) => setDateOpened(e.target.value)}
-              className="w-40 rounded-md border border-input bg-background px-3 py-2"
-              placeholder="Date Opened"
-            />
-            <button
-              type="submit"
-              className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
-            >
-              Add
-            </button>
-          </form>
-        </div>
+              <div>
+                <Label htmlFor="card">Card</Label>
+                <Select
+                  id="card"
+                  value={selectedCard}
+                  onChange={(e) => setSelectedCard(e.target.value)}
+                  required
+                >
+                  <option value="">Select card</option>
+                  {availableCards
+                    .filter((card) => !userCardIds.has(card.id))
+                    .map((card) => (
+                      <option key={card.id} value={card.id}>
+                        {card.name} (${card.annual_fee}/yr)
+                      </option>
+                    ))}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="opened">Date opened (optional)</Label>
+                <Input
+                  id="opened"
+                  type="date"
+                  value={dateOpened}
+                  onChange={(e) => setDateOpened(e.target.value)}
+                />
+              </div>
+              <Button type="submit">Add card</Button>
+            </form>
+          </CardContent>
+        </Card>
 
-        {/* User's Cards */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Your Cards</h2>
+        <div className="mt-8">
+          <h2 className="font-display text-xl">In your wallet</h2>
           {userCards.length === 0 ? (
-            <p className="text-muted-foreground">
-              No cards added yet. Add your credit cards to get personalized recommendations.
+            <p className="mt-3 text-muted-foreground">
+              No cards yet. Add the cards you hold to unlock their transfer
+              partners in your playbooks.
             </p>
           ) : (
-            userCards.map((userCard) => (
-              <div
-                key={userCard.id}
-                className="flex items-center justify-between rounded-lg border p-4"
-              >
-                <div>
-                  <p className="font-medium">{userCard.cards.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {userCard.cards.issuer} · {userCard.cards.network}
-                  </p>
-                  {userCard.date_opened && (
-                    <p className="text-sm text-muted-foreground">
-                      Opened: {new Date(userCard.date_opened).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="font-semibold">${userCard.cards.annual_fee}/yr</p>
-                    {userCard.cards.signup_bonus_points > 0 && (
-                      <p className="text-sm text-green-600">
-                        {userCard.cards.signup_bonus_points.toLocaleString()} pts bonus
+            <div className="mt-4 space-y-3">
+              {userCards.map((userCard) => (
+                <Card key={userCard.id}>
+                  <CardContent className="flex items-center justify-between gap-4 p-4 sm:p-5">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
+                        {userCard.cards.name}
                       </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => removeCard(userCard.id)}
-                    className="text-destructive hover:text-destructive/80"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))
+                      <p className="text-sm text-muted-foreground">
+                        {userCard.cards.issuer} · {userCard.cards.network}
+                        {userCard.date_opened &&
+                          ` · opened ${new Date(
+                            userCard.date_opened
+                          ).toLocaleDateString()}`}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-4">
+                      <div className="text-right">
+                        <p className="font-mono font-semibold">
+                          ${userCard.cards.annual_fee}/yr
+                        </p>
+                        {userCard.cards.signup_bonus_points > 0 && (
+                          <Badge tone="success" className="mt-1">
+                            {userCard.cards.signup_bonus_points.toLocaleString()}{" "}
+                            pt bonus
+                          </Badge>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeCard(userCard.id)}
+                        className="text-sm text-destructive transition-colors hover:text-destructive/80"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </div>
       </div>

@@ -157,6 +157,41 @@ export interface Database {
           last_updated?: string;
         };
       };
+      award_cache: {
+        Row: {
+          id: string;
+          origin: string;
+          destination: string;
+          departure_date: string;
+          cabin: string;
+          results: Json;
+          provider: string | null;
+          cached_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          origin: string;
+          destination: string;
+          departure_date: string;
+          cabin?: string;
+          results?: Json;
+          provider?: string | null;
+          cached_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          id?: string;
+          origin?: string;
+          destination?: string;
+          departure_date?: string;
+          cabin?: string;
+          results?: Json;
+          provider?: string | null;
+          cached_at?: string;
+          expires_at?: string;
+        };
+      };
       transfer_rates: {
         Row: {
           id: string;

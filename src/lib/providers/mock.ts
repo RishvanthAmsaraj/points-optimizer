@@ -51,25 +51,26 @@ function seeded(key: string, salt: number): number {
   return ((h >>> 0) % 1000) / 1000;
 }
 
-const CABIN_MILES_MULT = { economy: 1, premium_economy: 1.6, business: 2.4, first: 3.6 };
+// Cabin multipliers over the economy award rate
+const CABIN_MILES_MULT = { economy: 1, premium_economy: 1.7, business: 3.2, first: 5 };
 const CABIN_CASH_MULT = { economy: 1, premium_economy: 2.2, business: 4.5, first: 7.5 };
 
 interface MockProgram {
   programName: string;
   airline: string;
-  /** cents-per-mile-flown style rate: award miles per flown mile */
+  /** Award miles charged per flown mile, one-way economy. */
   rate: number;
   feesUsd: number;
 }
 
 const MOCK_PROGRAMS: MockProgram[] = [
-  { programName: "Air Canada Aeroplan", airline: "Air Canada / Star Alliance", rate: 10.5, feesUsd: 65 },
-  { programName: "United MileagePlus", airline: "United / Star Alliance", rate: 12.5, feesUsd: 45 },
-  { programName: "Air France-KLM Flying Blue", airline: "Air France / SkyTeam", rate: 11, feesUsd: 190 },
-  { programName: "Singapore Airlines KrisFlyer", airline: "Singapore Airlines", rate: 11.5, feesUsd: 120 },
-  { programName: "American Airlines AAdvantage", airline: "American / oneworld", rate: 12, feesUsd: 40 },
-  { programName: "Virgin Atlantic Flying Club", airline: "Virgin Atlantic / partners", rate: 9.5, feesUsd: 320 },
-  { programName: "Alaska Airlines Atmos Rewards", airline: "Alaska / oneworld partners", rate: 10, feesUsd: 55 },
+  { programName: "Air Canada Aeroplan", airline: "Air Canada / Star Alliance", rate: 4.6, feesUsd: 65 },
+  { programName: "United MileagePlus", airline: "United / Star Alliance", rate: 5.6, feesUsd: 45 },
+  { programName: "Air France-KLM Flying Blue", airline: "Air France / SkyTeam", rate: 4.9, feesUsd: 190 },
+  { programName: "Singapore Airlines KrisFlyer", airline: "Singapore Airlines", rate: 5.1, feesUsd: 120 },
+  { programName: "American Airlines AAdvantage", airline: "American / oneworld", rate: 5.4, feesUsd: 40 },
+  { programName: "Virgin Atlantic Flying Club", airline: "Virgin Atlantic / partners", rate: 4.2, feesUsd: 320 },
+  { programName: "Alaska Airlines Atmos Rewards", airline: "Alaska / oneworld partners", rate: 4.4, feesUsd: 55 },
 ];
 
 export class MockAwardProvider implements AwardProvider {
@@ -84,12 +85,12 @@ export class MockAwardProvider implements AwardProvider {
       .map((p, i) => {
         const jitter = 0.85 + seeded(key, i * 7 + 1) * 0.4;
         const miles =
-          Math.round((dist * (p.rate / 100) * CABIN_MILES_MULT[q.cabin] * legs * jitter) / 500) * 500 * 10;
+          Math.round((dist * p.rate * CABIN_MILES_MULT[q.cabin] * legs * jitter) / 500) * 500;
         const stops = dist > 4500 ? (seeded(key, i * 3) > 0.5 ? 1 : 0) : seeded(key, i * 3) > 0.8 ? 1 : 0;
         const via = stops === 1 ? Object.keys(AIRPORTS)[Math.floor(seeded(key, i * 11) * 20)] : null;
         return {
           programName: p.programName,
-          milesRequired: Math.max(miles, 12500),
+          milesRequired: Math.max(miles, 7500),
           taxesAndFeesUsd: Math.round(p.feesUsd * legs * (0.8 + seeded(key, i * 5) * 0.5)),
           airline: p.airline,
           routing: via ? [q.origin, via, q.destination] : [q.origin, q.destination],

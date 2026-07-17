@@ -38,10 +38,10 @@ export const PORTAL_CONFIG: Record<string, PortalConfig> = {
 
 /** Relative importance of each factor when ranking paths. Must sum to 1. */
 export const SCORE_WEIGHTS = {
-  value: 0.45, // cents-per-point captured
-  simplicity: 0.2, // fewer steps is better
-  speed: 0.2, // instant transfers beat 48-hour ones
-  risk: 0.15, // irreversible/lossy hops get penalized
+  value: 0.6, // cents-per-point captured — the point of the product
+  simplicity: 0.15, // fewer steps is better
+  speed: 0.15, // instant transfers beat multi-day ones
+  risk: 0.1, // graded down as warnings accumulate
 };
 
 /** Maps typical_timing text to a 0..1 speed score (1 = instant). */
@@ -51,6 +51,7 @@ export const TIMING_SPEED_SCORE: Array<[string, number]> = [
   ["24 hour", 0.6],
   ["48 hour", 0.4],
   ["week", 0.2],
+  ["day", 0.45], // catches "3-5 days" etc. ("same day" matches earlier)
 ];
 
 const TRANSFER_URLS: Record<string, string> = {

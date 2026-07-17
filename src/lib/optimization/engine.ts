@@ -465,7 +465,10 @@ function buildPortalPaths(
 function scorePath(path: PaymentPath): number {
   const cppNorm = Math.min(path.cpp / 5, 1); // 5cpp treated as ceiling
   const simplicity = 1 / path.complexity;
-  const risk = path.warnings.length > 0 ? 0 : 1;
+  // Graded, not binary: every transfer path carries at least the
+  // "irreversible" warning, so a binary penalty would punish all transfers
+  // equally and let low-value portal paths outrank 3x-value redemptions.
+  const risk = 1 / (1 + path.warnings.length);
   return (
     cppNorm * SCORE_WEIGHTS.value +
     simplicity * SCORE_WEIGHTS.simplicity +
@@ -486,7 +489,7 @@ export function buildOptimizationPlaybook(
   awardOptions: AwardOption[],
   options: EngineOptions = {}
 ): PlaybookResult | null {
-  const { maxHops = 2, maxAlternatives = 4, providerName = "unknown" } = options;
+  const { maxHops = 2, maxAlternatives = 6, providerName = "unknown" } = options;
 
   const programById = new Map(programs.map((p) => [p.id, p]));
   const incomingEdges = buildIncomingEdgeIndex(transferRates);
