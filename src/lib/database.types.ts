@@ -167,6 +167,9 @@ export interface Database {
           typical_timing: string | null;
           minimum_transfer: number;
           bonus_multiplier: number;
+          block_size: number;
+          block_bonus: number;
+          increment: number;
         };
         Insert: {
           id?: string;
@@ -177,6 +180,9 @@ export interface Database {
           typical_timing?: string | null;
           minimum_transfer?: number;
           bonus_multiplier?: number;
+          block_size?: number;
+          block_bonus?: number;
+          increment?: number;
         };
         Update: {
           id?: string;
@@ -187,6 +193,9 @@ export interface Database {
           typical_timing?: string | null;
           minimum_transfer?: number;
           bonus_multiplier?: number;
+          block_size?: number;
+          block_bonus?: number;
+          increment?: number;
         };
       };
       playbooks: {

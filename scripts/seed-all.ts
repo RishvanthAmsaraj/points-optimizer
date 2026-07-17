@@ -1,7 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Credit cards data
-const cards = [
+
+interface CardSeed {
+  name: string;
+  issuer: string;
+  network: string;
+  annual_fee: number;
+  signup_bonus_points: number;
+  signup_bonus_spend_required: number;
+  category_multipliers: Record<string, number>;
+  transfer_partners: string[];
+}
+
+const cards: CardSeed[] = [
   {
     name: "Chase Sapphire Preferred",
     issuer: "Chase",
@@ -141,7 +153,17 @@ const cards = [
 ];
 
 // Loyalty programs data
-const programs = [
+
+interface ProgramSeed {
+  name: string;
+  type: string;
+  alliance: string | null;
+  point_valuation_cents: number;
+  transfer_partners: string[];
+  expiration_policy: string;
+}
+
+const programs: ProgramSeed[] = [
   {
     name: "Chase Ultimate Rewards",
     type: "bank",

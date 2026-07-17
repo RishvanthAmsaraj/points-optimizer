@@ -1,30 +1,128 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+
+type StepType = "use_balance" | "transfer" | "book" | "portal";
 
 interface PlaybookStep {
-  type: "transfer" | "book" | "portal";
+  type: StepType;
   description: string;
   details: Record<string, unknown>;
 }
 
+interface PaymentPath {
+  id: string;
+  name: string;
+  steps: PlaybookStep[];
+  totalPoints: number;
+  pointsBreakdown: { programName: string; amount: number }[];
+  totalCash: number;
+  cpp: number;
+  cashAvoided: number;
+  warnings: string[];
+}
+
 interface PlaybookResult {
-  best: {
-    name: string;
-    totalPoints: number;
-    totalCash: number;
-    cpp: number;
-    savings: number;
-    steps: PlaybookStep[];
-  };
-  alternatives: Array<{
-    name: string;
-    totalPoints: number;
-    totalCash: number;
-    cpp: number;
-    savings: number;
-  }>;
+  best: PaymentPath;
+  alternatives: PaymentPath[];
+  consideredCount: number;
+  meta: { provider: string; generatedAt: string; disclaimer: string };
+}
+
+const CABINS = [
+  { value: "economy", label: "Economy" },
+  { value: "premium_economy", label: "Premium Economy" },
+  { value: "business", label: "Business" },
+  { value: "first", label: "First" },
+] as const;
+
+function StepCard({ step, index }: { step: PlaybookStep; index: number }) {
+  const d = step.details;
+  return (
+    <div className="rounded-lg bg-secondary p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+          {index + 1}
+        </span>
+        <div className="min-w-0">
+          <p className="font-medium">{step.description}</p>
+
+          {step.type === "transfer" && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {d.pointsArriving != null &&
+                `${Number(d.pointsArriving).toLocaleString()} points arrive`}
+              {d.blockBonus ? ` (includes ${d.blockBonus})` : null}
+              {d.timing ? ` · ${String(d.timing)}` : null}
+              {d.reversible === false ? " · not reversible" : null}
+            </p>
+          )}
+
+          {step.type === "book" && d.milesRequired != null && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {Number(d.milesRequired).toLocaleString()} miles + $
+              {Number(d.taxesAndFees).toLocaleString()} taxes and fees
+            </p>
+          )}
+
+          {step.type === "portal" && d.note != null && (
+            <p className="text-sm text-muted-foreground mt-1">{String(d.note)}</p>
+          )}
+
+          {typeof d.transferUrl === "string" && d.transferUrl && (
+            <a
+              href={d.transferUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline mt-2 inline-block"
+            >
+              Open transfer page →
+            </a>
+          )}
+          {typeof d.bookingUrl === "string" && d.bookingUrl && (
+            <a
+              href={d.bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline mt-2 inline-block"
+            >
+              Open booking page →
+            </a>
+          )}
+          {typeof d.portalUrl === "string" && d.portalUrl && (
+            <a
+              href={d.portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline mt-2 inline-block"
+            >
+              Open travel portal →
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PathSummary({ path }: { path: PaymentPath }) {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm">
+      {path.cpp > 0 && (
+        <span className="text-green-600 font-medium">
+          {path.cpp.toFixed(2)}¢ per point
+        </span>
+      )}
+      {path.cashAvoided > 0 && (
+        <span className="text-muted-foreground">
+          ${path.cashAvoided.toLocaleString()} cash avoided
+        </span>
+      )}
+      <span className="text-muted-foreground">
+        {path.totalPoints.toLocaleString()} points
+        {path.totalCash > 0 && ` + $${path.totalCash.toLocaleString()} fees`}
+      </span>
+    </div>
+  );
 }
 
 export default function PlaybookPage() {
@@ -33,233 +131,278 @@ export default function PlaybookPage() {
     destination: "",
     departureDate: "",
     returnDate: "",
-    cabin: "economy" as const,
+    cabin: "economy" as (typeof CABINS)[number]["value"],
+    passengers: 1,
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PlaybookResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const supabase = createClient();
+  const [expandedAlt, setExpandedAlt] = useState<string | null>(null);
 
   async function generatePlaybook(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setResult(null);
 
     try {
-      const { data: session } = await supabase.auth.getSession();
-      
       const response = await fetch("/api/playbook", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.session?.access_token}`,
-        },
-        body: JSON.stringify(query),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...query,
+          returnDate: query.returnDate || undefined,
+        }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
-        setError(data.error || "Failed to generate playbook");
+        setError(data.error || "Something went wrong building your playbook.");
       } else {
         setResult(data.playbook);
       }
-    } catch (err) {
-      setError("Network error. Please try again.");
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   }
 
+  const inputClass =
+    "w-full rounded-md border border-input bg-background px-3 py-2";
+
   return (
-    <main className="min-h-screen p-8">
+    <main className="min-h-screen p-4 sm:p-8">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold mb-4">Build Your Playbook</h1>
+        <h1 className="text-3xl font-bold mb-2">Build your playbook</h1>
         <p className="text-muted-foreground mb-8">
-          Tell us where you want to go and we'll find the best way to use your points.
+          Tell us the trip. We'll map every transfer chain your points can
+          reach and rank the routes by value.
         </p>
 
-        {/* Search Form */}
-        <form onSubmit={generatePlaybook} className="rounded-lg border p-6 mb-8">
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        <form
+          onSubmit={generatePlaybook}
+          className="rounded-lg border p-4 sm:p-6 mb-8"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium mb-1">From</label>
+              <label htmlFor="origin" className="block text-sm font-medium mb-1">
+                From
+              </label>
               <input
+                id="origin"
                 type="text"
                 placeholder="JFK"
                 value={query.origin}
-                onChange={(e) => setQuery({ ...query, origin: e.target.value.toUpperCase() })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                onChange={(e) =>
+                  setQuery({ ...query, origin: e.target.value.toUpperCase() })
+                }
+                className={inputClass}
                 required
                 maxLength={3}
+                pattern="[A-Za-z]{3}"
+                title="3-letter airport code"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">To</label>
+              <label
+                htmlFor="destination"
+                className="block text-sm font-medium mb-1"
+              >
+                To
+              </label>
               <input
+                id="destination"
                 type="text"
                 placeholder="NRT"
                 value={query.destination}
-                onChange={(e) => setQuery({ ...query, destination: e.target.value.toUpperCase() })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                onChange={(e) =>
+                  setQuery({
+                    ...query,
+                    destination: e.target.value.toUpperCase(),
+                  })
+                }
+                className={inputClass}
                 required
                 maxLength={3}
+                pattern="[A-Za-z]{3}"
+                title="3-letter airport code"
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Departure</label>
+              <label
+                htmlFor="departure"
+                className="block text-sm font-medium mb-1"
+              >
+                Departure
+              </label>
               <input
+                id="departure"
                 type="date"
                 value={query.departureDate}
-                onChange={(e) => setQuery({ ...query, departureDate: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                onChange={(e) =>
+                  setQuery({ ...query, departureDate: e.target.value })
+                }
+                className={inputClass}
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Return (optional)</label>
+              <label htmlFor="return" className="block text-sm font-medium mb-1">
+                Return (optional)
+              </label>
               <input
+                id="return"
                 type="date"
                 value={query.returnDate}
-                onChange={(e) => setQuery({ ...query, returnDate: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                onChange={(e) =>
+                  setQuery({ ...query, returnDate: e.target.value })
+                }
+                className={inputClass}
               />
             </div>
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Cabin</label>
-            <select
-              value={query.cabin}
-              onChange={(e) => setQuery({ ...query, cabin: e.target.value as any })}
-              className="w-full rounded-md border border-input bg-background px-3 py-2"
-            >
-              <option value="economy">Economy</option>
-              <option value="premium_economy">Premium Economy</option>
-              <option value="business">Business</option>
-              <option value="first">First</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label htmlFor="cabin" className="block text-sm font-medium mb-1">
+                Cabin
+              </label>
+              <select
+                id="cabin"
+                value={query.cabin}
+                onChange={(e) =>
+                  setQuery({
+                    ...query,
+                    cabin: e.target.value as typeof query.cabin,
+                  })
+                }
+                className={inputClass}
+              >
+                {CABINS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="passengers"
+                className="block text-sm font-medium mb-1"
+              >
+                Passengers
+              </label>
+              <input
+                id="passengers"
+                type="number"
+                min={1}
+                max={9}
+                value={query.passengers}
+                onChange={(e) =>
+                  setQuery({
+                    ...query,
+                    passengers: Math.max(1, Math.min(9, Number(e.target.value))),
+                  })
+                }
+                className={inputClass}
+              />
+            </div>
           </div>
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-md bg-primary px-4 py-3 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-medium"
           >
-            {loading ? "Building your playbook..." : "Build My Playbook"}
+            {loading ? "Searching award space…" : "Build my playbook"}
           </button>
         </form>
 
-        {/* Error */}
         {error && (
           <div className="rounded-lg border border-destructive p-4 mb-8 text-destructive">
             {error}
           </div>
         )}
 
-        {/* Results */}
         {result && (
           <div className="space-y-6">
-            {/* Best Option */}
-            <div className="rounded-lg border-2 border-primary p-6">
-              <div className="flex items-center gap-2 mb-4">
+            <div className="rounded-lg border-2 border-primary p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-1">
                 <span className="text-2xl">🏆</span>
-                <h2 className="text-xl font-bold">Best Option</h2>
+                <h2 className="text-xl font-bold">Best route to book</h2>
               </div>
-              
-              <div className="mb-4">
-                <p className="text-lg font-semibold">{result.best.name}</p>
-                <div className="flex gap-4 mt-2 text-sm">
-                  <span className="text-green-600 font-medium">
-                    {result.best.cpp.toFixed(2)}¢ per point
-                  </span>
-                  <span className="text-muted-foreground">
-                    ${result.best.savings.toFixed(0)} savings vs. portal
-                  </span>
-                </div>
-              </div>
+              <p className="text-lg font-semibold">{result.best.name}</p>
+              <PathSummary path={result.best} />
 
-              <div className="space-y-4">
+              {result.best.warnings.length > 0 && (
+                <div className="mt-4 rounded-md border border-amber-400 bg-amber-50 p-3">
+                  {result.best.warnings.map((w, i) => (
+                    <p key={i} className="text-sm text-amber-800">
+                      ⚠ {w}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-3 mt-4">
                 {result.best.steps.map((step, index) => (
-                  <div key={index} className="rounded-lg bg-secondary p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="font-medium">{step.description}</p>
-                        {step.type === "transfer" && step.details.pointsToTransfer && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Transfer {Number(step.details.pointsToTransfer).toLocaleString()} points
-                            {step.details.ratio && ` at ${step.details.ratio}:1 ratio`}
-                            {step.details.timing && ` (${step.details.timing})`}
-                          </p>
-                        )}
-                        {step.type === "book" && step.details.milesRequired && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {Number(step.details.milesRequired).toLocaleString()} miles + ${step.details.taxesAndFees} taxes
-                          </p>
-                        )}
-                        {step.details.transferUrl && (
-                          <a
-                            href={String(step.details.transferUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline mt-2 inline-block"
-                          >
-                            Open transfer page →
-                          </a>
-                        )}
-                        {step.details.bookingUrl && (
-                          <a
-                            href={String(step.details.bookingUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline mt-2 inline-block"
-                          >
-                            Open booking page →
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <StepCard key={index} step={step} index={index} />
                 ))}
               </div>
 
-              <div className="mt-4 pt-4 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Total: {result.best.totalPoints.toLocaleString()} points + ${result.best.totalCash} cash
-                </p>
-              </div>
+              {result.best.pointsBreakdown.length > 1 && (
+                <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
+                  Points used:{" "}
+                  {result.best.pointsBreakdown
+                    .map(
+                      (b) => `${b.amount.toLocaleString()} ${b.programName}`
+                    )
+                    .join(" · ")}
+                </div>
+              )}
             </div>
 
-            {/* Alternatives */}
             {result.alternatives.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold mb-4">Alternative Options</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  Other routes we considered
+                </h3>
                 <div className="space-y-3">
-                  {result.alternatives.map((alt, index) => (
-                    <div key={index} className="rounded-lg border p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{alt.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {alt.totalPoints.toLocaleString()} points + ${alt.totalCash} cash
-                          </p>
+                  {result.alternatives.map((alt) => (
+                    <div key={alt.id} className="rounded-lg border p-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedAlt(expandedAlt === alt.id ? null : alt.id)
+                        }
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium">{alt.name}</p>
+                            <PathSummary path={alt} />
+                          </div>
+                          <span className="text-muted-foreground shrink-0">
+                            {expandedAlt === alt.id ? "Hide steps" : "Show steps"}
+                          </span>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium">{alt.cpp.toFixed(2)}¢/pt</p>
-                          <p className="text-sm text-muted-foreground">
-                            ${alt.savings.toFixed(0)} savings
-                          </p>
+                      </button>
+                      {expandedAlt === alt.id && (
+                        <div className="space-y-3 mt-4">
+                          {alt.steps.map((step, index) => (
+                            <StepCard key={index} step={step} index={index} />
+                          ))}
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            <p className="text-xs text-muted-foreground border-t pt-4">
+              {result.meta.disclaimer}
+            </p>
           </div>
         )}
       </div>

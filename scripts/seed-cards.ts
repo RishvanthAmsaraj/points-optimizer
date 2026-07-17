@@ -1,6 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const cards = [
+
+interface CardSeed {
+  name: string;
+  issuer: string;
+  network: string;
+  annual_fee: number;
+  signup_bonus_points: number;
+  signup_bonus_spend_required: number;
+  category_multipliers: Record<string, number>;
+  transfer_partners: string[];
+}
+
+const cards: CardSeed[] = [
   {
     name: "Chase Sapphire Preferred",
     issuer: "Chase",

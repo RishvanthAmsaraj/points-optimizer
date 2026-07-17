@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
@@ -21,11 +22,11 @@ export function Navigation() {
     window.location.href = "/";
   }
 
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/points", label: "Points" },
-    { href: "/cards", label: "Cards" },
-    { href: "/playbook", label: "Playbook" },
+  const navItems: Array<{ href: Route; label: string }> = [
+    { href: "/dashboard" as Route, label: "Dashboard" },
+    { href: "/points" as Route, label: "Points" },
+    { href: "/cards" as Route, label: "Cards" },
+    { href: "/playbook" as Route, label: "Playbook" },
   ];
 
   return (
