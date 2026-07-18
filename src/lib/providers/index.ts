@@ -1,7 +1,14 @@
 import { AmadeusCashPriceProvider } from "./amadeus";
+import { AmadeusHotelCashProvider } from "./amadeus-hotels";
+import { ChartHotelAwardProvider, MockHotelCashProvider } from "./hotel-charts";
 import { MockAwardProvider, MockCashPriceProvider } from "./mock";
 import { SeatsAeroProvider } from "./seatsaero";
-import { AwardProvider, CashPriceProvider } from "./types";
+import {
+  AwardProvider,
+  CashPriceProvider,
+  HotelAwardProvider,
+  HotelCashProvider,
+} from "./types";
 
 /**
  * Provider selection:
@@ -28,6 +35,19 @@ export function getCashPriceProvider(): CashPriceProvider {
   const secret = process.env.AMADEUS_CLIENT_SECRET;
   if (id && secret) return new AmadeusCashPriceProvider(id, secret);
   return new MockCashPriceProvider();
+}
+
+export function getHotelAwardProvider(): HotelAwardProvider {
+  // Chart-based is the production strategy for hotel awards (no licensed
+  // award-pricing API exists) — see docs/DATA_SOURCES.md.
+  return new ChartHotelAwardProvider();
+}
+
+export function getHotelCashProvider(): HotelCashProvider {
+  const id = process.env.AMADEUS_CLIENT_ID;
+  const secret = process.env.AMADEUS_CLIENT_SECRET;
+  if (id && secret) return new AmadeusHotelCashProvider(id, secret);
+  return new MockHotelCashProvider();
 }
 
 export * from "./types";

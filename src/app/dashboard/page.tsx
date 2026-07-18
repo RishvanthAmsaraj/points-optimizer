@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PointsDonut } from "@/components/points-donut";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { REDEMPTION_FLOORS } from "@/lib/optimization/config";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -40,6 +41,12 @@ export default async function DashboardPage() {
 
   const totalPoints = rows.reduce((s, r) => s + r.balance, 0);
   const totalValue = rows.reduce((s, r) => s + r.valueUsd, 0);
+  // Cash-out floor: what the bank-currency portion is worth as plain cash or
+  // statement credits — the number a redemption must beat to be worth doing.
+  const floorValue = rows.reduce((s, r) => {
+    const cpp = REDEMPTION_FLOORS[r.name];
+    return cpp ? s + (r.balance * cpp) / 100 : s;
+  }, 0);
   const maxValue = Math.max(1, ...rows.map((r) => r.valueUsd));
 
   const fmtUsd = (n: number) =>
@@ -85,6 +92,12 @@ export default async function DashboardPage() {
               <p className="mt-2 font-mono text-3xl text-success">
                 {fmtUsd(totalValue)}
               </p>
+              {floorValue > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Cash-out floor: {fmtUsd(floorValue)} — playbooks find what
+                  beats it
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>

@@ -49,3 +49,40 @@ export interface CashPriceProvider {
   readonly name: string;
   getCashPrice(query: AwardSearchQuery): Promise<CashQuote | null>;
 }
+
+// ---------------------------------------------------------------------------
+// Hotels
+// ---------------------------------------------------------------------------
+
+export interface HotelSearchQuery {
+  /** IATA city code, e.g. TYO, PAR, NYC. */
+  cityCode: string;
+  cityName?: string;
+  checkIn: string; // YYYY-MM-DD
+  checkOut: string;
+  nights: number;
+  rooms: number;
+  guests: number;
+}
+
+/** A hotel award option keyed by program NAME. Amounts are PER ROOM for the
+ *  whole stay (nights already multiplied in). */
+export interface ProviderHotelOption {
+  programName: string;
+  pointsRequired: number;
+  taxesAndFeesUsd: number;
+  /** e.g. "Hyatt Category 4-equivalent · 3 nights" */
+  label: string;
+  source: string;
+}
+
+export interface HotelAwardProvider {
+  readonly name: string;
+  searchHotelAwards(query: HotelSearchQuery): Promise<ProviderHotelOption[]>;
+}
+
+export interface HotelCashProvider {
+  readonly name: string;
+  /** Per-room price for the whole stay, USD. */
+  getHotelCashPrice(query: HotelSearchQuery): Promise<CashQuote | null>;
+}

@@ -1,6 +1,7 @@
 import { Database } from "@/lib/database.types";
 import {
   PORTAL_CONFIG,
+  REDEMPTION_FLOORS,
   SCORE_WEIGHTS,
   TIMING_SPEED_SCORE,
   getBookingUrl,
@@ -15,7 +16,8 @@ type TransferRate = Database["public"]["Tables"]["transfer_rates"]["Row"];
 // Public types
 // ---------------------------------------------------------------------------
 
-export interface TravelQuery {
+export interface FlightQuery {
+  type: "flight";
   origin: string;
   destination: string;
   departureDate: string;
@@ -24,19 +26,48 @@ export interface TravelQuery {
   passengers: number;
 }
 
-/** One bookable award, already resolved to a loyalty_programs row. */
+export interface HotelQuery {
+  type: "hotel";
+  cityCode: string;
+  cityName?: string;
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  rooms: number;
+  guests: number;
+}
+
+export type TravelQuery = FlightQuery | HotelQuery;
+
+/** How many award units the trip needs: per-passenger for flights;
+ *  hotel providers already return per-stay totals (per room). */
+function unitsFor(query: TravelQuery): number {
+  return query.type === "flight" ? query.passengers : query.rooms;
+}
+
+/** One bookable award, already resolved to a loyalty_programs row.
+ *  Flights: amounts are PER PASSENGER. Hotels: amounts are PER ROOM for
+ *  the whole stay (the provider totals nights). */
 export interface AwardOption {
+  kind: "flight" | "hotel";
   program: LoyaltyProgram;
-  /** Miles required PER PASSENGER. */
+  /** Points/miles required per unit (see above). */
   milesRequired: number;
-  /** Taxes/fees in USD PER PASSENGER. */
+  /** Taxes/fees in USD per unit. */
   taxesAndFees: number;
-  /** Comparable cash price in USD PER PASSENGER (0 if unknown). */
+  /** Comparable cash price in USD per unit (0 if unknown). */
   cashPrice: number;
-  airline: string;
-  routing: string[];
-  stops: number;
-  durationMinutes: number;
+  /** Human label for the book step, e.g. "Air Canada / Star Alliance" or
+   *  "Hyatt Category 4-equivalent · 3 nights". */
+  label: string;
+  /** Flight-only details. */
+  airline?: string;
+  routing?: string[];
+  stops?: number;
+  durationMinutes?: number;
+  /** Hotel-only details. */
+  nights?: number;
+  city?: string;
   source: string;
 }
 
@@ -71,6 +102,10 @@ export interface PaymentPath {
   /** 0..1 — 1 is instant end-to-end. */
   speedScore: number;
   warnings: string[];
+  /** Cash-out floor comparison: what these points are worth as cash/credits,
+   *  and how many times this redemption beats that. Omitted when no bank
+   *  currency is spent or the cash price is unknown. */
+  floor?: { floorValueUsd: number; multiple: number };
   score: number;
 }
 
@@ -288,10 +323,10 @@ function planToPath(
   award: AwardOption,
   query: TravelQuery
 ): PaymentPath {
-  const pax = query.passengers;
-  const milesNeeded = award.milesRequired * pax;
-  const totalFees = award.taxesAndFees * pax;
-  const totalCashPrice = award.cashPrice * pax;
+  const units = unitsFor(query);
+  const milesNeeded = award.milesRequired * units;
+  const totalFees = award.taxesAndFees * units;
+  const totalCashPrice = award.cashPrice * units;
 
   const steps: PathStep[] = [];
   const breakdown = new Map<string, number>();
@@ -353,20 +388,34 @@ function planToPath(
 
   steps.push({
     type: "book",
-    description: `Book the ${award.airline} award (${award.routing.join(" → ")}) through ${award.program.name}`,
+    description:
+      award.kind === "flight"
+        ? `Book the ${award.label} award (${(award.routing ?? []).join(" → ")}) through ${award.program.name}`
+        : `Book ${award.label} with ${award.program.name} points`,
     details: {
       program: award.program.name,
       milesRequired: milesNeeded,
       taxesAndFees: totalFees,
-      passengers: pax,
+      units,
       bookingUrl: getBookingUrl(award.program.name),
-      flight: {
-        airline: award.airline,
-        routing: award.routing,
-        stops: award.stops,
-        durationMinutes: award.durationMinutes,
-        cabin: query.cabin,
-      },
+      ...(award.kind === "flight"
+        ? {
+            flight: {
+              airline: award.airline,
+              routing: award.routing,
+              stops: award.stops,
+              durationMinutes: award.durationMinutes,
+              cabin: query.type === "flight" ? query.cabin : undefined,
+            },
+          }
+        : {
+            hotel: {
+              label: award.label,
+              city: award.city,
+              nights: award.nights,
+              rooms: units,
+            },
+          }),
     },
   });
 
@@ -386,6 +435,13 @@ function planToPath(
             award.program.name,
           ].join(" → ");
 
+  const floorValueUsd = [...breakdown.entries()].reduce((sum, [name, amount]) => {
+    const cpp = REDEMPTION_FLOORS[name];
+    return cpp ? sum + (amount * cpp) / 100 : sum;
+  }, 0);
+  const cashAvoidedValue =
+    totalCashPrice > 0 ? Math.max(totalCashPrice - totalFees, 0) : 0;
+
   return {
     id: `award-${award.program.id}-${plan.kind}-${steps.length}-${totalPoints}`,
     name: chainLabel,
@@ -401,6 +457,14 @@ function planToPath(
     complexity: steps.length,
     speedScore: slowest,
     warnings,
+    ...(floorValueUsd > 0 && cashAvoidedValue > 0
+      ? {
+          floor: {
+            floorValueUsd,
+            multiple: cashAvoidedValue / floorValueUsd,
+          },
+        }
+      : {}),
     score: 0,
   };
 }
@@ -411,13 +475,13 @@ function planToPath(
 
 function buildPortalPaths(
   query: TravelQuery,
-  cashPricePerPax: number,
+  cashPricePerUnit: number,
   balances: PointsBalance[],
   programs: LoyaltyProgram[]
 ): PaymentPath[] {
-  if (cashPricePerPax <= 0) return [];
+  if (cashPricePerUnit <= 0) return [];
   const paths: PaymentPath[] = [];
-  const totalCashPrice = cashPricePerPax * query.passengers;
+  const totalCashPrice = cashPricePerUnit * unitsFor(query);
 
   for (const program of programs.filter((p) => p.type === "bank")) {
     const portal = PORTAL_CONFIG[program.name];
@@ -452,6 +516,17 @@ function buildPortalPaths(
       complexity: 1,
       speedScore: 1,
       warnings: [],
+      ...(REDEMPTION_FLOORS[program.name]
+        ? {
+            floor: {
+              floorValueUsd:
+                (pointsNeeded * REDEMPTION_FLOORS[program.name]) / 100,
+              multiple:
+                totalCashPrice /
+                ((pointsNeeded * REDEMPTION_FLOORS[program.name]) / 100),
+            },
+          }
+        : {}),
       score: 0,
     });
   }
@@ -498,7 +573,7 @@ export function buildOptimizationPlaybook(
   for (const award of awardOptions) {
     const plans = findFundingPlans(
       award.program,
-      award.milesRequired * query.passengers,
+      award.milesRequired * unitsFor(query),
       userBalances,
       programById,
       incomingEdges,

@@ -26,7 +26,7 @@ const rates = [
 ];
 
 const award = (program: any, miles: number): AwardOption => ({
-  program, milesRequired: miles, taxesAndFees: 30, cashPrice: 1800,
+  kind: "flight", label: "Test", program, milesRequired: miles, taxesAndFees: 30, cashPrice: 1800,
   airline: "Test", routing: ["JFK", "NRT"], stops: 0, durationMinutes: 800, source: "test",
 });
 
@@ -35,7 +35,7 @@ let result = buildOptimizationPlaybook(
   [{ id: "b1", user_id: "u", program_id: "chase", balance: 200000, last_updated: "" } as any],
   [chase, amex, marriott, alaska, aeroplan],
   rates,
-  { origin: "JFK", destination: "NRT", departureDate: "2026-10-01", cabin: "business", passengers: 1 },
+  { type: "flight", origin: "JFK", destination: "NRT", departureDate: "2026-10-01", cabin: "business", passengers: 1 },
   [award(alaska, 60000)]
 );
 console.log("TEST 1 — 2-hop Chase→Marriott→Alaska for 60k Alaska miles");
@@ -60,7 +60,7 @@ result = buildOptimizationPlaybook(
   ],
   [chase, amex, marriott, alaska, aeroplan],
   rates,
-  { origin: "JFK", destination: "YYZ", departureDate: "2026-10-01", cabin: "economy", passengers: 1 },
+  { type: "flight", origin: "JFK", destination: "YYZ", departureDate: "2026-10-01", cabin: "economy", passengers: 1 },
   [award(aeroplan, 60000)]
 );
 console.log("\nTEST 2 — split-source: 40k Chase + 30k Amex → 60k Aeroplan award");
@@ -79,7 +79,7 @@ result = buildOptimizationPlaybook(
   ],
   [chase, amex, marriott, alaska, aeroplan],
   rates,
-  { origin: "JFK", destination: "YYZ", departureDate: "2026-10-01", cabin: "economy", passengers: 2 },
+  { type: "flight", origin: "JFK", destination: "YYZ", departureDate: "2026-10-01", cabin: "economy", passengers: 2 },
   [award(aeroplan, 35000)] // 70k total for 2 pax; 25k held + 45k transfer
 );
 console.log("\nTEST 3 — 2 pax, partial Aeroplan balance + Chase top-up");

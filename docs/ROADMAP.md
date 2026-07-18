@@ -17,7 +17,7 @@ The goal: real playbooks for real routes, tested by ~20 power users from the poi
 ## Phase 2 — The features people pay for
 
 - **Transfer bonus alerts** — "Your 140k MR are worth 182k Virgin miles until March 12." This is the highest-leverage retention feature and falls straight out of `bonus_multiplier` + a cron + email.
-- **Hotel awards** — the schema already models hotel programs; add a hotel award provider and portal comparison.
+- ~~**Hotel awards**~~ — **done**: chart-based hotel award provider (Hyatt/Marriott/Hilton/IHG), Amadeus hotel cash comparison, hotel playbooks in the same engine and UI.
 - **Balance auto-sync** — evaluate AwardWallet's account-linking APIs. This changes our security posture (see DATA_SOURCES.md §4), so it's a deliberate decision, not a default.
 - **Mixed-itinerary optimization** — outbound on one program, return on another. Competitors don't do this well.
 - **Card recommendations** — "you're 60k short for this trip; this card's signup bonus covers it." This is also the monetization bridge (below).

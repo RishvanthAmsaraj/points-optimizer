@@ -39,6 +39,8 @@ Design rule that everything follows: **user-supplied state lives in Supabase beh
 
 ## The optimization engine (`src/lib/optimization/engine.ts`)
 
+The engine is **redemption-agnostic**: an award is "a program, a points price, fees, and a cash comparison," whether that's a business-class seat or three nights at a Hyatt. Flight and hotel playbooks share one engine, one scoring model, one UI — adding a redemption type means adding a provider, not an engine. Every path also carries the **cash-out floor**: what the bank-currency points spent would be worth as plain cash/statement credits (config `REDEMPTION_FLOORS`), and how many times the redemption beats it. That's the honest "should I even bother" number.
+
 The core insight: **transfer partners form a directed graph.** Nodes are loyalty programs; edges are transfer rates. Finding the cheapest way to fund an award is a bounded backwards graph search from the award's program toward programs where the user actually holds points.
 
 For each bookable award, the engine generates funding plans:
@@ -59,6 +61,15 @@ Tuning knobs live in `src/lib/optimization/config.ts` (portal values, score weig
 - Portal values are per-program, not per-card (a Sapphire Reserve boosts Chase portal value vs. a Preferred). We use the conservative value; wiring card-level multipliers through `user_cards` is on the roadmap.
 - Partial balances are only used at the *target* program, not at intermediate hops — intermediate partials explode the search space for negligible real-world gain.
 - One-way pricing: round trips are approximated by the provider layer; itinerary-level pricing (mixed programs per direction) is a Phase 2 feature and a genuinely differentiating one.
+
+## Robustness
+
+- `src/lib/env.ts` — zod-validated environment at boot; malformed keys log loudly instead of failing mysteriously at request time. The app always runs keyless (mock mode).
+- `/api/health` — public health endpoint (config presence + DB ping) for uptime monitoring.
+- Rate limits — 10 playbooks/hour for everyone (protects provider quota) plus the free-tier monthly cap; both DB-backed so they work on serverless.
+- Provider failures — award-data outages return a friendly 503; cash-price failures degrade silently (playbook still generates, just without cpp).
+- Date validation — bookings limited to a ~360-day horizon, stays to 30 nights; past dates rejected with clear messages.
+- Caches — `award_cache` and `hotel_cache` are shared market-data tables (6h TTL) so identical queries never re-burn quota.
 
 ## Security model
 

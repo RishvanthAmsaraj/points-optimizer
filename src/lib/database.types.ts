@@ -157,6 +157,47 @@ export interface Database {
           last_updated?: string;
         };
       };
+      hotel_cache: {
+        Row: {
+          id: string;
+          city_code: string;
+          check_in: string;
+          check_out: string;
+          rooms: number;
+          guests: number;
+          results: Json;
+          cash_price_usd: number | null;
+          provider: string | null;
+          cached_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          city_code: string;
+          check_in: string;
+          check_out: string;
+          rooms?: number;
+          guests?: number;
+          results?: Json;
+          cash_price_usd?: number | null;
+          provider?: string | null;
+          cached_at?: string;
+          expires_at?: string;
+        };
+        Update: {
+          id?: string;
+          city_code?: string;
+          check_in?: string;
+          check_out?: string;
+          rooms?: number;
+          guests?: number;
+          results?: Json;
+          cash_price_usd?: number | null;
+          provider?: string | null;
+          cached_at?: string;
+          expires_at?: string;
+        };
+      };
       award_cache: {
         Row: {
           id: string;
@@ -236,6 +277,7 @@ export interface Database {
       playbooks: {
         Row: {
           id: string;
+          type: string;
           user_id: string;
           query: string;
           steps: Json;
@@ -245,6 +287,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          type?: string;
           user_id: string;
           query: string;
           steps?: Json;
@@ -254,6 +297,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          type?: string;
           user_id?: string;
           query?: string;
           steps?: Json;

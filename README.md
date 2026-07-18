@@ -8,7 +8,7 @@ Tell us what you have, tell us where you want to go, and we'll build you the exa
 
 ## What Makes Us Different
 
-Unlike existing search tools (Point.me, Roame), we provide **step-by-step optimization playbooks** — not just search results, including multi-hop transfer chains (e.g. Chase → Marriott → Alaska) that most tools and most humans miss. We bridge the gap between "I have points" and "I know exactly what to do."
+Unlike existing search tools (Point.me, Roame), we provide **step-by-step optimization playbooks** — not just search results — across **flights AND hotel stays**, including multi-hop transfer chains (e.g. Chase → Marriott → Alaska) that most tools and most humans miss, with every route measured against your **cash-out floor** so you never redeem below what your points are worth as plain cash. We bridge the gap between "I have points" and "I know exactly what to do."
 
 We never collect card numbers or loyalty-account credentials. Users self-report cards and balances; everything else comes from licensed market data.
 
@@ -48,8 +48,11 @@ The app runs fully in mock mode with zero external API keys — see `docs/DATA_S
 
 - [x] User onboarding & points inventory
 - [x] Credit card wallet
-- [x] Optimization playbook generator (multi-hop transfer engine)
+- [x] Optimization playbook generator (multi-hop transfer engine, flights + hotels)
+- [x] Hotel award playbooks (Hyatt/Marriott/Hilton/IHG charts + Amadeus cash comparison)
+- [x] Cash-out floor engine ("never redeem below this" on every playbook and the dashboard)
 - [x] Award search provider layer (mock + Seats.aero + Amadeus adapters)
+- [x] Hardening: env validation, /api/health, hourly rate limits, shared market-data caches
 - [ ] Live partner API keys (Seats.aero approval pending)
 - [ ] Stripe premium subscriptions
 - [ ] Transfer bonus alerts

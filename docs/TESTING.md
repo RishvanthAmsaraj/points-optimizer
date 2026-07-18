@@ -28,8 +28,8 @@ Expected:
 **Playbook:** JFK → SIN, departure `2026-11-05`, Economy, 1 passenger.
 
 Expected:
-- Best route: **Chase + Amex → Air France-KLM Flying Blue — 49,000 pts total, 2.54¢/pt**: transfer 40,000 from Chase and 9,000 from Amex into Flying Blue, then book. Two warnings (both transfers irreversible).
-- The stub shows the per-program points breakdown ("40,000 Chase Ultimate Rewards · 9,000 Amex Membership Rewards").
+- Best route: **Chase + Amex → Singapore Airlines KrisFlyer — 48,000 pts total, 2.68¢/pt**: transfer from Chase and top up from Amex into KrisFlyer, then book. Two warnings (both transfers irreversible).
+- The stub shows the per-program points breakdown across both currencies, plus the cash-out floor line ("Same points as cash/credits: $X — this route captures N× that").
 - This proves no single balance covered the award and the engine combined sources correctly.
 
 ## Scenario C — two-hop chain discovery
@@ -42,9 +42,23 @@ Expected:
 - Expand the alternatives: the list must include **Chase Ultimate Rewards → Marriott Bonvoy → Alaska Airlines Atmos Rewards — 225,000 pts, 1.50¢/pt** with three warnings (two irreversible transfers + a "this hop loses points" flag from the 3:1 ratio). Its transfer step notes the "+5,000 bonus per 60,000 transferred" block bonus.
 - This is the honest behavior we want: the engine *finds* the exotic chain, ranks it truthfully below better options, and explains why.
 
+## Scenario D — hotel playbook (new)
+
+**Set balances to exactly:** Chase `120000`, Amex `80000`.
+**Playbook page:** switch the toggle to **Hotel**. City code `TYO` (name "Tokyo"), check-in `2026-10-14`, check-out `2026-10-17`, 1 room, 2 guests.
+
+Expected:
+- Best route: **Chase Ultimate Rewards → World of Hyatt — 63,000 pts, 2.26¢/pt**: transfer 63,000 Chase → Hyatt, then book "a Category 6 Hyatt in Tokyo · 3 nights". No taxes line (award nights are generally tax-free; we don't guess resort fees).
+- The stub shows the floor comparison: those 63,000 Chase points are worth $630 as cash, and this stay captures **2.3×** that.
+- Alternatives include Hilton (via Amex 1:2), IHG (via Chase), Marriott, and the Chase portal — the portal must **not** win.
+- Verify all of this without the browser: `npx tsx scripts/scenario-check.ts` runs Scenarios A–D and asserts the split-source, two-hop, Hyatt-path, and floor invariants.
+
 ## Other checks
 
 - **Free-tier gate:** set `PLAYBOOK_FREE_LIMIT=1`, restart, run one playbook, run another → the second must be refused with the upgrade message. Restore to 999.
+- **Hourly rate limit:** everyone (including premium) is capped at 10 playbooks/hour; the 11th returns a friendly 429. This protects provider quota.
+- **Health endpoint:** `curl localhost:3000/api/health` → `{ ok: true, checks: { database: true, awardProvider: "mock", ... } }`. Point UptimeRobot at this in production.
+- **Date validation:** a past departure date or a check-out before check-in must return a clear 400, not a crash.
 - **Cache:** run the same query twice; the second response is near-instant (shared `award_cache`, 6h TTL). Different dates re-query the provider.
 - **Validation:** origin "JF" or a past-malformed date must return a clear 400 error message, not a crash.
 - **No balances:** delete all balances, run any playbook → friendly "none of it is reachable with your current balances" message.

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { RouteStop } from "@/components/route-line";
 
 type StepType = "use_balance" | "transfer" | "book" | "portal";
+type Mode = "flight" | "hotel";
 
 interface PlaybookStep {
   type: StepType;
@@ -27,6 +28,7 @@ interface PaymentPath {
   cpp: number;
   cashAvoided: number;
   warnings: string[];
+  floor?: { floorValueUsd: number; multiple: number };
 }
 
 interface PlaybookResult {
@@ -78,7 +80,9 @@ function StepBody({ step }: { step: PlaybookStep }) {
           <span className="font-mono">
             {Number(d.milesRequired).toLocaleString()}
           </span>{" "}
-          miles + ${Number(d.taxesAndFees).toLocaleString()} taxes and fees
+          points
+          {Number(d.taxesAndFees) > 0 &&
+            ` + $${Number(d.taxesAndFees).toLocaleString()} taxes and fees`}
         </p>
       )}
       {step.type === "portal" && d.note != null && (
@@ -108,18 +112,32 @@ function PathMeta({ path }: { path: PaymentPath }) {
         {path.totalPoints.toLocaleString()} pts
         {path.totalCash > 0 && ` + $${path.totalCash.toLocaleString()}`}
       </span>
+      {path.floor && path.floor.multiple >= 1.05 && (
+        <span className="text-muted-foreground">
+          {path.floor.multiple.toFixed(1)}× your cash-out floor
+        </span>
+      )}
     </div>
   );
 }
 
 export default function PlaybookPage() {
-  const [query, setQuery] = useState({
+  const [mode, setMode] = useState<Mode>("flight");
+  const [flight, setFlight] = useState({
     origin: "",
     destination: "",
     departureDate: "",
     returnDate: "",
     cabin: "economy" as (typeof CABINS)[number]["value"],
     passengers: 1,
+  });
+  const [hotel, setHotel] = useState({
+    cityCode: "",
+    cityName: "",
+    checkIn: "",
+    checkOut: "",
+    rooms: 1,
+    guests: 2,
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PlaybookResult | null>(null);
@@ -132,14 +150,24 @@ export default function PlaybookPage() {
     setError(null);
     setResult(null);
 
+    const body =
+      mode === "flight"
+        ? {
+            type: "flight",
+            ...flight,
+            returnDate: flight.returnDate || undefined,
+          }
+        : {
+            type: "hotel",
+            ...hotel,
+            cityName: hotel.cityName || undefined,
+          };
+
     try {
       const response = await fetch("/api/playbook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...query,
-          returnDate: query.returnDate || undefined,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -154,6 +182,25 @@ export default function PlaybookPage() {
     }
   }
 
+  const modeTab = (m: Mode, label: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        setMode(m);
+        setResult(null);
+        setError(null);
+      }}
+      className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+        mode === m
+          ? "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      }`}
+      aria-pressed={mode === m}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <main className="min-h-screen px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-4xl">
@@ -164,113 +211,218 @@ export default function PlaybookPage() {
           Name the trip. We&rsquo;ll draw the route.
         </h1>
         <p className="mt-3 max-w-2xl text-muted-foreground">
-          We map every transfer chain your points can reach — portals included
-          as the honest baseline — and rank the routes by real value.
+          Flights and hotel stays — we map every transfer chain your points can
+          reach, compare against portals and your cash-out floor, and rank the
+          routes by real value.
         </p>
 
         <Card className="mt-8">
           <CardContent className="p-5 sm:p-6">
+            <div className="mb-5 inline-flex gap-1 rounded-lg border border-border/70 bg-background/60 p-1">
+              {modeTab("flight", "✈ Flight")}
+              {modeTab("hotel", "🏨 Hotel")}
+            </div>
+
             <form onSubmit={generatePlaybook}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="origin">From</Label>
-                  <Input
-                    id="origin"
-                    placeholder="JFK"
-                    value={query.origin}
-                    onChange={(e) =>
-                      setQuery({ ...query, origin: e.target.value.toUpperCase() })
-                    }
-                    required
-                    maxLength={3}
-                    pattern="[A-Za-z]{3}"
-                    title="3-letter airport code"
-                    className="font-mono"
-                  />
+              {mode === "flight" ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="origin">From</Label>
+                    <Input
+                      id="origin"
+                      placeholder="JFK"
+                      value={flight.origin}
+                      onChange={(e) =>
+                        setFlight({
+                          ...flight,
+                          origin: e.target.value.toUpperCase(),
+                        })
+                      }
+                      required
+                      maxLength={3}
+                      pattern="[A-Za-z]{3}"
+                      title="3-letter airport code"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="destination">To</Label>
+                    <Input
+                      id="destination"
+                      placeholder="NRT"
+                      value={flight.destination}
+                      onChange={(e) =>
+                        setFlight({
+                          ...flight,
+                          destination: e.target.value.toUpperCase(),
+                        })
+                      }
+                      required
+                      maxLength={3}
+                      pattern="[A-Za-z]{3}"
+                      title="3-letter airport code"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="departure">Departure</Label>
+                    <Input
+                      id="departure"
+                      type="date"
+                      value={flight.departureDate}
+                      onChange={(e) =>
+                        setFlight({ ...flight, departureDate: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="return">Return (optional)</Label>
+                    <Input
+                      id="return"
+                      type="date"
+                      value={flight.returnDate}
+                      onChange={(e) =>
+                        setFlight({ ...flight, returnDate: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="cabin">Cabin</Label>
+                    <Select
+                      id="cabin"
+                      value={flight.cabin}
+                      onChange={(e) =>
+                        setFlight({
+                          ...flight,
+                          cabin: e.target.value as typeof flight.cabin,
+                        })
+                      }
+                    >
+                      {CABINS.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="passengers">Passengers</Label>
+                    <Input
+                      id="passengers"
+                      type="number"
+                      min={1}
+                      max={9}
+                      value={flight.passengers}
+                      onChange={(e) =>
+                        setFlight({
+                          ...flight,
+                          passengers: Math.max(
+                            1,
+                            Math.min(9, Number(e.target.value))
+                          ),
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="destination">To</Label>
-                  <Input
-                    id="destination"
-                    placeholder="NRT"
-                    value={query.destination}
-                    onChange={(e) =>
-                      setQuery({
-                        ...query,
-                        destination: e.target.value.toUpperCase(),
-                      })
-                    }
-                    required
-                    maxLength={3}
-                    pattern="[A-Za-z]{3}"
-                    title="3-letter airport code"
-                    className="font-mono"
-                  />
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="cityCode">City code</Label>
+                    <Input
+                      id="cityCode"
+                      placeholder="TYO"
+                      value={hotel.cityCode}
+                      onChange={(e) =>
+                        setHotel({
+                          ...hotel,
+                          cityCode: e.target.value.toUpperCase(),
+                        })
+                      }
+                      required
+                      maxLength={3}
+                      pattern="[A-Za-z]{3}"
+                      title="3-letter city code, e.g. TYO, PAR, NYC"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="cityName">City name (optional)</Label>
+                    <Input
+                      id="cityName"
+                      placeholder="Tokyo"
+                      value={hotel.cityName}
+                      onChange={(e) =>
+                        setHotel({ ...hotel, cityName: e.target.value })
+                      }
+                      maxLength={60}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="checkIn">Check-in</Label>
+                    <Input
+                      id="checkIn"
+                      type="date"
+                      value={hotel.checkIn}
+                      onChange={(e) =>
+                        setHotel({ ...hotel, checkIn: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="checkOut">Check-out</Label>
+                    <Input
+                      id="checkOut"
+                      type="date"
+                      value={hotel.checkOut}
+                      onChange={(e) =>
+                        setHotel({ ...hotel, checkOut: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="rooms">Rooms</Label>
+                    <Input
+                      id="rooms"
+                      type="number"
+                      min={1}
+                      max={4}
+                      value={hotel.rooms}
+                      onChange={(e) =>
+                        setHotel({
+                          ...hotel,
+                          rooms: Math.max(1, Math.min(4, Number(e.target.value))),
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="guests">Guests</Label>
+                    <Input
+                      id="guests"
+                      type="number"
+                      min={1}
+                      max={8}
+                      value={hotel.guests}
+                      onChange={(e) =>
+                        setHotel({
+                          ...hotel,
+                          guests: Math.max(1, Math.min(8, Number(e.target.value))),
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="departure">Departure</Label>
-                  <Input
-                    id="departure"
-                    type="date"
-                    value={query.departureDate}
-                    onChange={(e) =>
-                      setQuery({ ...query, departureDate: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="return">Return (optional)</Label>
-                  <Input
-                    id="return"
-                    type="date"
-                    value={query.returnDate}
-                    onChange={(e) =>
-                      setQuery({ ...query, returnDate: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="cabin">Cabin</Label>
-                  <Select
-                    id="cabin"
-                    value={query.cabin}
-                    onChange={(e) =>
-                      setQuery({
-                        ...query,
-                        cabin: e.target.value as typeof query.cabin,
-                      })
-                    }
-                  >
-                    {CABINS.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="passengers">Passengers</Label>
-                  <Input
-                    id="passengers"
-                    type="number"
-                    min={1}
-                    max={9}
-                    value={query.passengers}
-                    onChange={(e) =>
-                      setQuery({
-                        ...query,
-                        passengers: Math.max(
-                          1,
-                          Math.min(9, Number(e.target.value))
-                        ),
-                      })
-                    }
-                  />
-                </div>
-              </div>
+              )}
               <Button type="submit" disabled={loading} className="mt-5 w-full" size="lg">
-                {loading ? "Searching award space…" : "Build my playbook"}
+                {loading
+                  ? mode === "flight"
+                    ? "Searching award space…"
+                    : "Pricing award stays…"
+                  : "Build my playbook"}
               </Button>
             </form>
           </CardContent>
@@ -284,7 +436,6 @@ export default function PlaybookPage() {
 
         {result && (
           <div className="mt-8 space-y-8">
-            {/* Best route — the boarding pass */}
             <div className="rounded-lg border border-primary/40 bg-card p-5 shadow-[0_0_48px_-16px_hsl(var(--primary)/0.35)] sm:p-8">
               <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                 <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
@@ -327,6 +478,16 @@ export default function PlaybookPage() {
                   {result.best.pointsBreakdown
                     .map((b) => `${b.amount.toLocaleString()} ${b.programName}`)
                     .join(" · ")}
+                  {result.best.floor && (
+                    <span className="block">
+                      Same points as cash/credits: $
+                      {Math.round(
+                        result.best.floor.floorValueUsd
+                      ).toLocaleString()}{" "}
+                      — this route captures{" "}
+                      {result.best.floor.multiple.toFixed(1)}× that
+                    </span>
+                  )}
                 </div>
                 {result.best.cpp > 0 && (
                   <div className="font-mono text-xl text-success">
@@ -336,7 +497,6 @@ export default function PlaybookPage() {
               </div>
             </div>
 
-            {/* Alternatives */}
             {result.alternatives.length > 0 && (
               <div>
                 <h3 className="font-display text-xl">

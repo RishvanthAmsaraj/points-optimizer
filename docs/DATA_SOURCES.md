@@ -51,7 +51,17 @@ There is no API for "which programs transfer to which, at what ratio, with what 
 
 Monitoring sources: issuer program pages (ground truth), plus the trade press (Frequent Miler, One Mile at a Time, TPG) as change-detection tripwires — verify against the issuer before updating data.
 
-## 4. What we deliberately do NOT collect
+## 4. Hotel awards — chart-maintained (and why that's not a hack)
+
+There is **no licensed API for hotel award pricing** — nothing like Seats.aero exists for hotels at partner-API terms. Every credible tool in this space maintains award charts and bands by hand, and so do we (`src/lib/providers/hotel-charts.ts`):
+
+- **World of Hyatt still publishes a real award chart** (categories 1–8 with fixed standard-room rates), so Hyatt data can be genuinely accurate — and Hyatt via Chase 1:1 is the single best hotel value in the game, which is why it anchors our hotel playbooks.
+- **Marriott, Hilton, and IHG price dynamically**, so we model realistic per-city-tier bands and label results "-equivalent" rather than pretending to quote a specific property. Honest labeling is the feature: users get the transfer math and the value verdict, then confirm the exact property on the program's site (the book step links there).
+- The **cash comparison** comes from the Amadeus Hotel Search API (Hotel List by city → Hotel Offers v3, median of returned rates) — included in Amadeus Self-Service with its own free monthly quota, same account as flights. Falls back to deterministic mocks keyless.
+- Ops cadence addition: verify Hyatt's chart and the dynamic bands quarterly; city-tier table grows as users search new cities (unknown cities default to tier 3 with a wide band).
+- Future upgrades: awayz.com and similar hotel-award search products are potential partners if they open APIs; nothing licensable exists today.
+
+## 5. What we deliberately do NOT collect
 
 The privacy stance is a feature, not a limitation, and it's what keeps compliance simple:
 

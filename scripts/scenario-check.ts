@@ -8,6 +8,7 @@
  */
 import { buildOptimizationPlaybook, AwardOption } from "../src/lib/optimization/engine";
 import { MockAwardProvider, MockCashPriceProvider } from "../src/lib/providers/mock";
+import { ChartHotelAwardProvider, MockHotelCashProvider } from "../src/lib/providers/hotel-charts";
 
 // --- Mirror of the seeded reference data (subset relevant to scenarios) ----
 const mk = (id: string, name: string, type: string) =>
@@ -24,6 +25,9 @@ const programs = [
   mk("aa", "American Airlines AAdvantage", "airline"),
   mk("virgin", "Virgin Atlantic Flying Club", "airline"),
   mk("alaska", "Alaska Airlines Atmos Rewards", "airline"),
+  mk("hyatt", "World of Hyatt", "hotel"),
+  mk("hilton", "Hilton Honors", "hotel"),
+  mk("ihg", "IHG One Rewards", "hotel"),
 ];
 const P = new Map(programs.map((p) => [p.id, p]));
 
@@ -45,6 +49,9 @@ const rates = [
   edge("marriott", "alaska", { ratio: 0.3333, block_size: 60000, block_bonus: 5000, increment: 3000, minimum_transfer: 3000, typical_timing: "3-5 days" }),
   edge("marriott", "aa", { ratio: 0.3333, block_size: 60000, block_bonus: 5000, increment: 3000, minimum_transfer: 3000, typical_timing: "3-5 days" }),
   edge("marriott", "united", { ratio: 0.3333, block_size: 60000, block_bonus: 5000, increment: 3000, minimum_transfer: 3000, typical_timing: "3-5 days" }),
+  edge("chase", "hyatt"),
+  edge("chase", "ihg"),
+  edge("amex", "hilton", { ratio: 2.0 }),
 ];
 
 const bal = (programId: string, balance: number) =>
@@ -58,12 +65,15 @@ async function run(
   balances: any[],
   query: { origin: string; destination: string; departureDate: string; cabin: "economy" | "premium_economy" | "business" | "first"; passengers: number }
 ) {
-  const providerOptions = await awardProvider.searchAwards(query);
-  const cash = await cashProvider.getCashPrice(query);
+  const q = { type: "flight" as const, ...query };
+  const providerOptions = await awardProvider.searchAwards(q);
+  const cash = await cashProvider.getCashPrice(q);
   const byName = new Map(programs.map((p) => [p.name, p]));
   const awards: AwardOption[] = providerOptions
     .filter((o) => byName.has(o.programName))
     .map((o) => ({
+      kind: "flight" as const,
+      label: o.airline,
       program: byName.get(o.programName)!,
       milesRequired: o.milesRequired,
       taxesAndFees: o.taxesAndFeesUsd,
@@ -75,7 +85,7 @@ async function run(
       source: o.source,
     }));
 
-  const result = buildOptimizationPlaybook(balances, programs, rates, query, awards, {
+  const result = buildOptimizationPlaybook(balances, programs, rates, q, awards, {
     providerName: "mock",
   });
 
@@ -124,6 +134,42 @@ async function main() {
   if (!c) throw new Error("Scenario C produced no result");
   const hasTwoHop = [c.best, ...c.alternatives].some((p) => p.name.includes("Marriott Bonvoy →"));
   console.log(hasTwoHop ? "✓ two-hop Marriott chain present" : "✗ two-hop chain MISSING (Alaska may not show space for this date — pick another date)");
+
+  // Scenario D — hotel playbook: Chase-funded Hyatt stay in Tokyo
+  const hotelProvider = new ChartHotelAwardProvider();
+  const hotelCash = new MockHotelCashProvider();
+  const hq = { type: "hotel" as const, cityCode: "TYO", cityName: "Tokyo", checkIn: "2026-10-14", checkOut: "2026-10-17", nights: 3, rooms: 1, guests: 2 };
+  const hotelOptions = await hotelProvider.searchHotelAwards(hq);
+  const hcash = await hotelCash.getHotelCashPrice(hq);
+  const byName = new Map(programs.map((p) => [p.name, p]));
+  const hotelAwards: AwardOption[] = hotelOptions
+    .filter((o) => byName.has(o.programName))
+    .map((o) => ({
+      kind: "hotel" as const,
+      label: o.label,
+      program: byName.get(o.programName)!,
+      milesRequired: o.pointsRequired,
+      taxesAndFees: o.taxesAndFeesUsd,
+      cashPrice: hcash?.priceUsd ?? 0,
+      nights: hq.nights,
+      city: hq.cityName,
+      source: o.source,
+    }));
+  const d = buildOptimizationPlaybook(
+    [bal("chase", 120000), bal("amex", 80000)],
+    programs, rates, hq, hotelAwards, { providerName: "charts" }
+  );
+  console.log(`\n=== Scenario D · Tokyo hotel 3 nights · Chase 120k + Amex 80k ===`);
+  console.log(`Hotel award space: ${hotelOptions.map((o) => `${o.programName} ${o.pointsRequired.toLocaleString()}`).join(" | ")}`);
+  console.log(`Cash comparison (mock): $${hcash?.priceUsd.toLocaleString()}`);
+  if (!d) throw new Error("Scenario D produced no result");
+  console.log(`BEST: ${d.best.name} — ${d.best.totalPoints.toLocaleString()} pts, ${d.best.cpp.toFixed(2)}¢/pt`);
+  for (const s of d.best.steps) console.log(`   • ${s.description}`);
+  if (d.best.floor) console.log(`   floor: $${d.best.floor.floorValueUsd.toFixed(0)} cash-out → this redemption = ${d.best.floor.multiple.toFixed(1)}× the floor`);
+  const hyattReachable = [d.best, ...d.alternatives].some((p) => p.name.includes("World of Hyatt"));
+  console.log(hyattReachable ? "✓ Hyatt path present (Chase transfer)" : "✗ Hyatt path missing");
+  const hasFloor = !!d.best.floor;
+  console.log(hasFloor ? "✓ cash-out floor computed" : "✗ floor missing");
 }
 
 main();

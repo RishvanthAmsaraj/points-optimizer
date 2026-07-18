@@ -38,9 +38,13 @@ export const PORTAL_CONFIG: Record<string, PortalConfig> = {
 
 /** Relative importance of each factor when ranking paths. Must sum to 1. */
 export const SCORE_WEIGHTS = {
-  value: 0.6, // cents-per-point captured — the point of the product
-  simplicity: 0.15, // fewer steps is better
-  speed: 0.15, // instant transfers beat multi-day ones
+  // Value dominates; the rest are tiebreakers. Rationale: a portal path gets
+  // perfect simplicity/speed/risk scores, so if those weights are too heavy
+  // it outranks transfers with far better cents-per-point. Calibrated so a
+  // transfer needs only ~0.7¢/pt of edge to beat the portal, not ~1¢+.
+  value: 0.7, // cents-per-point captured — the point of the product
+  simplicity: 0.1, // fewer steps is better
+  speed: 0.1, // instant transfers beat multi-day ones
   risk: 0.1, // graded down as warnings accumulate
 };
 
@@ -62,6 +66,19 @@ const TRANSFER_URLS: Record<string, string> = {
   "Marriott Bonvoy": "https://www.marriott.com/loyalty/redeem/convert-points.mi",
 };
 
+/**
+ * Conservative published cash-out rates for bank currencies (cents/point).
+ * This is the "redemption floor": the value you can ALWAYS get without any
+ * travel booking (statement credit / cash redemption). Airline and hotel
+ * points have no cash-out, so they contribute no floor. Review quarterly.
+ */
+export const REDEMPTION_FLOORS: Record<string, number> = {
+  "Chase Ultimate Rewards": 1.0, // cash redemption
+  "Amex Membership Rewards": 0.6, // statement credit (Schwab cash-out can be higher for those cardholders)
+  "Citi ThankYou Points": 1.0, // cash/check redemption
+  "Capital One Miles": 0.5, // statement credit against purchases
+};
+
 const BOOKING_URLS: Record<string, string> = {
   "United MileagePlus": "https://www.united.com",
   "American Airlines AAdvantage": "https://www.aa.com",
@@ -75,6 +92,10 @@ const BOOKING_URLS: Record<string, string> = {
   "Turkish Airlines Miles&Smiles": "https://www.turkishairlines.com",
   "Avianca LifeMiles": "https://www.lifemiles.com",
   "Emirates Skywards": "https://www.emirates.com",
+  "World of Hyatt": "https://www.hyatt.com",
+  "Marriott Bonvoy": "https://www.marriott.com",
+  "Hilton Honors": "https://www.hilton.com",
+  "IHG One Rewards": "https://www.ihg.com",
 };
 
 export function getTransferUrl(programName: string): string | null {
