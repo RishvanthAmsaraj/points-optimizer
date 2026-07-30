@@ -12,6 +12,8 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
+          alerts_enabled: boolean;
+          onboarded_at: string | null;
           display_name: string | null;
           home_airport: string | null;
           preferred_cabin: string;
@@ -21,6 +23,8 @@ export interface Database {
         };
         Insert: {
           id: string;
+          alerts_enabled?: boolean;
+          onboarded_at?: string | null;
           display_name?: string | null;
           home_airport?: string | null;
           preferred_cabin?: string;
@@ -136,6 +140,7 @@ export interface Database {
       };
       points_balances: {
         Row: {
+          last_activity_at: string | null;
           id: string;
           user_id: string;
           program_id: string;
@@ -144,6 +149,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          last_activity_at?: string | null;
           user_id: string;
           program_id: string;
           balance?: number;
@@ -151,10 +157,81 @@ export interface Database {
         };
         Update: {
           id?: string;
+          last_activity_at?: string | null;
           user_id?: string;
           program_id?: string;
           balance?: number;
           last_updated?: string;
+        };
+      };
+      trips: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          destination: string | null;
+          start_date: string | null;
+          end_date: string | null;
+          plan: Json;
+          total_points: number;
+          total_cash_usd: number;
+          value_captured_usd: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          destination?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          plan?: Json;
+          total_points?: number;
+          total_cash_usd?: number;
+          value_captured_usd?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          destination?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          plan?: Json;
+          total_points?: number;
+          total_cash_usd?: number;
+          value_captured_usd?: number;
+          created_at?: string;
+        };
+      };
+      experience_cache: {
+        Row: {
+          id: string;
+          city_code: string;
+          category: string;
+          results: Json;
+          provider: string | null;
+          cached_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          city_code: string;
+          category?: string;
+          results?: Json;
+          provider?: string | null;
+          cached_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          id?: string;
+          city_code?: string;
+          category?: string;
+          results?: Json;
+          provider?: string | null;
+          cached_at?: string;
+          expires_at?: string;
         };
       };
       hotel_cache: {
@@ -196,6 +273,138 @@ export interface Database {
           provider?: string | null;
           cached_at?: string;
           expires_at?: string;
+        };
+      };
+      experiences: {
+        Row: {
+          id: string;
+          name: string;
+          category: string;
+          city: string | null;
+          city_code: string | null;
+          country: string | null;
+          program_name: string;
+          channel: string;
+          points_required: number | null;
+          cash_price_usd: number | null;
+          fixed_cpp: number | null;
+          booking_url: string | null;
+          notes: string | null;
+          is_active: boolean;
+          verified_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          category: string;
+          city?: string | null;
+          city_code?: string | null;
+          country?: string | null;
+          program_name: string;
+          channel: string;
+          points_required?: number | null;
+          cash_price_usd?: number | null;
+          fixed_cpp?: number | null;
+          booking_url?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
+          verified_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          category?: string;
+          city?: string | null;
+          city_code?: string | null;
+          country?: string | null;
+          program_name?: string;
+          channel?: string;
+          points_required?: number | null;
+          cash_price_usd?: number | null;
+          fixed_cpp?: number | null;
+          booking_url?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
+          verified_at?: string | null;
+          created_at?: string;
+        };
+      };
+      watches: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: string;
+          origin: string | null;
+          destination: string | null;
+          city_code: string | null;
+          program_id: string | null;
+          cabin: string | null;
+          target_cpp: number | null;
+          max_points: number | null;
+          earliest_date: string | null;
+          latest_date: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind?: string;
+          origin?: string | null;
+          destination?: string | null;
+          city_code?: string | null;
+          program_id?: string | null;
+          cabin?: string | null;
+          target_cpp?: number | null;
+          max_points?: number | null;
+          earliest_date?: string | null;
+          latest_date?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          kind?: string;
+          origin?: string | null;
+          destination?: string | null;
+          city_code?: string | null;
+          program_id?: string | null;
+          cabin?: string | null;
+          target_cpp?: number | null;
+          max_points?: number | null;
+          earliest_date?: string | null;
+          latest_date?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+      };
+      alert_log: {
+        Row: {
+          id: string;
+          user_id: string;
+          alert_type: string;
+          dedupe_key: string;
+          payload: Json;
+          delivered_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          alert_type: string;
+          dedupe_key: string;
+          payload?: Json;
+          delivered_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          alert_type?: string;
+          dedupe_key?: string;
+          payload?: Json;
+          delivered_at?: string;
         };
       };
       award_cache: {
@@ -246,6 +455,9 @@ export interface Database {
           block_size: number;
           block_bonus: number;
           increment: number;
+          promo_name: string | null;
+          promo_starts_at: string | null;
+          promo_ends_at: string | null;
         };
         Insert: {
           id?: string;
@@ -259,6 +471,9 @@ export interface Database {
           block_size?: number;
           block_bonus?: number;
           increment?: number;
+          promo_name?: string | null;
+          promo_starts_at?: string | null;
+          promo_ends_at?: string | null;
         };
         Update: {
           id?: string;
@@ -272,6 +487,9 @@ export interface Database {
           block_size?: number;
           block_bonus?: number;
           increment?: number;
+          promo_name?: string | null;
+          promo_starts_at?: string | null;
+          promo_ends_at?: string | null;
         };
       };
       playbooks: {

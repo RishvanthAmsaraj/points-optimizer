@@ -19,6 +19,7 @@ interface PointsBalance {
   id: string;
   program_id: string;
   balance: number;
+  last_activity_at: string | null;
   loyalty_programs: LoyaltyProgram;
 }
 
@@ -26,7 +27,11 @@ export default function PointsPage() {
   const [balances, setBalances] = useState<PointsBalance[]>([]);
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newBalance, setNewBalance] = useState({ program_id: "", balance: "" });
+  const [newBalance, setNewBalance] = useState({
+    program_id: "",
+    balance: "",
+    last_activity_at: "",
+  });
 
   const supabase = createClient();
 
@@ -63,12 +68,13 @@ export default function PointsPage() {
         user_id: user.user.id,
         program_id: newBalance.program_id,
         balance: parseInt(newBalance.balance),
+        last_activity_at: newBalance.last_activity_at || null,
       },
       { onConflict: "user_id, program_id" }
     );
 
     if (!error) {
-      setNewBalance({ program_id: "", balance: "" });
+      setNewBalance({ program_id: "", balance: "", last_activity_at: "" });
       fetchData();
     }
   }
@@ -127,7 +133,7 @@ export default function PointsPage() {
             <h2 className="mb-4 font-display text-xl">Add a balance</h2>
             <form
               onSubmit={addBalance}
-              className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_180px_auto] sm:items-end"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_150px_170px_auto] sm:items-end"
             >
               <div>
                 <Label htmlFor="program">Program</Label>
@@ -162,8 +168,25 @@ export default function PointsPage() {
                   className="font-mono"
                 />
               </div>
+              <div>
+                <Label htmlFor="activity">Last activity</Label>
+                <Input
+                  id="activity"
+                  type="date"
+                  value={newBalance.last_activity_at}
+                  onChange={(e) =>
+                    setNewBalance({ ...newBalance, last_activity_at: e.target.value })
+                  }
+                  title="Last time you earned or redeemed in this program — powers expiry warnings"
+                />
+              </div>
               <Button type="submit">Add balance</Button>
             </form>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Last activity is optional, but it&rsquo;s how we warn you before
+              points expire — most programs wipe a balance after a set period
+              of inactivity.
+            </p>
           </CardContent>
         </Card>
 
@@ -189,6 +212,11 @@ export default function PointsPage() {
                         </p>
                         <p className="font-mono text-sm text-muted-foreground">
                           {balance.balance.toLocaleString()} points
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {balance.last_activity_at
+                            ? `Last activity ${balance.last_activity_at}`
+                            : "No activity date — expiry not tracked"}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-4">

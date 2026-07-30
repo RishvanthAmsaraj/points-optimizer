@@ -62,6 +62,35 @@ Tuning knobs live in `src/lib/optimization/config.ts` (portal values, score weig
 - Partial balances are only used at the *target* program, not at intermediate hops — intermediate partials explode the search space for negligible real-world gain.
 - One-way pricing: round trips are approximated by the provider layer; itinerary-level pricing (mixed programs per direction) is a Phase 2 feature and a genuinely differentiating one.
 
+## Trip allocator (`src/lib/optimization/trip-allocator.ts`)
+
+The feature that separates this from every competitor. A playbook answers "how do I book this flight?"; a trip is a flight AND a hotel AND maybe an experience funded from **one** pool. Optimize each leg independently and you spend the same 200k Chase points three times — a plan the user cannot execute.
+
+The allocator funds legs in **scarcity order**, then debits the pool before solving the next leg:
+
+1. **Funding breadth** measures scarcity: walk the transfer graph backwards from each award program and count the distinct *held* currencies that can reach it (plus one for a portal fallback). Narrowest first — a flexible leg can absorb what's left, a constrained one can't.
+2. Solve each leg with the normal engine against the **remaining** balances.
+3. Debit what the chosen path consumed.
+4. Report leftovers, blockers with cash fallbacks, and a blended cents-per-point across the trip.
+
+Why not count engine paths as the scarcity proxy? Because the engine stops generating split-source plans once a single program covers a leg, so a leg fundable from Chase *or* Amex reports the same count as one fundable only from Chase. That mis-ordering stranded the constrained leg; `scripts/trip-allocator-test.ts` asserts the fix, plus the core invariant: **no program is ever overspent across legs.**
+
+Unfundable legs are reported with a reason and a cash fallback, never silently dropped.
+
+## Redemption types beyond travel
+
+- **Experiences** (`src/lib/providers/experiences.ts`) — a maintained catalog, because no API exists for issuer experience programs. Two row shapes normalize into one comparable option: fixed awards (points + cash price) and fixed-value channels (a published cents-per-point). `experienceVerdict()` is the honesty layer — it tells users plainly when an experience channel at ~1¢/pt is a worse use of points than a transfer, rather than cheerleading the redemption.
+- **Stay enhancements** (`src/lib/optimization/stay-enhancements.ts`) — deterministic rules, not availability data: Marriott/Hilton 5th-night-free (with the "book as ONE reservation" caveat), suite upgrade instruments, IHG 4th-night, and issuer luxury programs (Amex FHR, The Edit by Chase, Cap One Premier Collection) where a *cash* booking with credits can beat an award. Rules that depend on unknown facts (does the user hold status?) are phrased conditionally.
+- **Expiry monitoring** (`src/lib/optimization/expiry.ts`) — parses each program's stated policy and the user's reported last-activity date. Warns only when the date is known; an unknown date produces a prompt, never a fabricated deadline.
+
+## Discovery, alerts, and growth features
+
+- **Reverse search** (`/api/explore`, `src/lib/providers/destinations.ts`) — the quota problem defines the design: every candidate destination is a provider call, so we search a curated 32-destination catalog, filter by region and points budget *before* calling out, run lookups sequentially (a parallel burst is the fastest way to get rate-limited upstream), route everything through the shared cache, and cap runs per hour. Destinations you can't fund still appear, with the cheapest award and which program holds it.
+- **Flexible dates** (`/api/playbook`, `flexDays`) — prices each candidate date against the user's *balances*, not the raw award chart, because a cheap award in an unreachable program isn't a saving. Winner is fewest points; the response includes every date so the UI can show the strip.
+- **Alerts** (`src/lib/optimization/alerts.ts`, `/api/alerts/digest`) — three alert types (transfer bonus, expiry, watch hit) with stable dedupe keys in `alert_log`. GET computes the signed-in user's alerts live and skips watch checks so opening the app never costs quota; POST is the cron job, requires `CRON_SECRET`, uses the service-role client, and runs in **dry-run mode** without `RESEND_API_KEY` — the whole pipeline is testable before an email provider exists. Bonus alerts only fire for currencies the user actually holds; noise gets digests muted.
+- **Card recommendations** (`src/lib/optimization/card-recommendations.ts`) — gap-triggered only. The playbook 404 carries the shortfall (program + points), the client asks for recommendations for exactly that gap, and results are ranked by fit then cost-to-hold. If this is ever affiliate-monetized, that ranking rule must not change and the disclosure belongs on the same screen.
+- **Caching layer** (`src/lib/providers/cached.ts`) — all award/hotel lookups flow through the shared `award_cache` / `hotel_cache` tables, so a destination priced for one user is free for everyone for six hours. This is what makes reverse search affordable.
+
 ## Robustness
 
 - `src/lib/env.ts` — zod-validated environment at boot; malformed keys log loudly instead of failing mysteriously at request time. The app always runs keyless (mock mode).

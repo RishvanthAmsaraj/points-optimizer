@@ -12,6 +12,7 @@ import {
   ProviderAwardOption,
   ProviderHotelOption,
 } from "@/lib/providers";
+import { cachedFlightAwards } from "@/lib/providers/cached";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -28,6 +29,8 @@ const flightSchema = z.object({
     .enum(["economy", "premium_economy", "business", "first"])
     .default("economy"),
   passengers: z.number().int().min(1).max(9).default(1),
+  /** Search +/- this many days around the departure date. */
+  flexDays: z.number().int().min(0).max(3).default(0),
 });
 
 const hotelSchema = z.object({
@@ -140,6 +143,15 @@ export async function POST(request: Request) {
     let providerName = "";
     let engineQuery: TravelQuery;
     let queryText = "";
+    /** Flexible-date comparison: best result per candidate date. */
+    let chosenDateForResponse: string | undefined;
+    let dateOptions: Array<{
+      date: string;
+      totalPoints: number;
+      cpp: number;
+      routeName: string;
+      isBest: boolean;
+    }> = [];
 
     if (validated.type === "flight") {
       engineQuery = validated;
@@ -148,42 +160,120 @@ export async function POST(request: Request) {
       providerName = provider.name;
 
       let options: ProviderAwardOption[] | null = null;
-      const { data: cached } = await supabase
-        .from("award_cache")
-        .select("results")
-        .eq("origin", validated.origin)
-        .eq("destination", validated.destination)
-        .eq("departure_date", validated.departureDate)
-        .eq("cabin", validated.cabin)
-        .gt("expires_at", new Date().toISOString())
-        .order("cached_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      let chosenDate = validated.departureDate;
 
-      if (cached?.results && Array.isArray(cached.results)) {
-        options = cached.results as unknown as ProviderAwardOption[];
-      } else {
-        try {
-          options = await provider.searchAwards(validated);
-        } catch (err) {
-          console.error(`[${requestId}] award provider failed:`, err);
-          return NextResponse.json(
-            {
-              error:
-                "Our award-data source isn't responding right now. Try again in a few minutes.",
-            },
-            { status: 503 }
-          );
+      try {
+        ({ options } = await cachedFlightAwards(supabase, validated));
+      } catch (err) {
+        console.error(`[${requestId}] award provider failed:`, err);
+        return NextResponse.json(
+          {
+            error:
+              "Our award-data source isn't responding right now. Try again in a few minutes.",
+          },
+          { status: 503 }
+        );
+      }
+
+      // --- Flexible dates -------------------------------------------------
+      // Award pricing swings enormously day to day, so shifting by a day or
+      // two is often the single biggest saving available. We price each
+      // candidate date against the user's actual balances (not just the raw
+      // award chart) because the cheapest award is useless if they can't
+      // reach that program.
+      if (validated.flexDays > 0) {
+        const [{ data: flexBalances }, { data: flexPrograms }, { data: flexRates }] =
+          await Promise.all([
+            supabase.from("points_balances").select("*").eq("user_id", user.id),
+            supabase.from("loyalty_programs").select("*"),
+            supabase.from("transfer_rates").select("*"),
+          ]);
+        const flexProgramByName = new Map(
+          (flexPrograms ?? []).map((p) => [p.name, p] as const)
+        );
+        const base = new Date(`${validated.departureDate}T00:00:00Z`);
+        const candidates: string[] = [];
+        for (let offset = -validated.flexDays; offset <= validated.flexDays; offset++) {
+          const d = new Date(base.getTime() + offset * 86_400_000);
+          const iso = d.toISOString().slice(0, 10);
+          if (new Date(`${iso}T00:00:00Z`).getTime() < Date.now() - 86_400_000) continue;
+          candidates.push(iso);
         }
-        await supabase.from("award_cache").insert({
-          origin: validated.origin,
-          destination: validated.destination,
-          departure_date: validated.departureDate,
-          cabin: validated.cabin,
-          results: options as unknown as never,
-          provider: provider.name,
-          expires_at: new Date(Date.now() + CACHE_HOURS * 3600_000).toISOString(),
-        });
+
+        const perDate: Array<{
+          date: string;
+          options: ProviderAwardOption[];
+          totalPoints: number;
+          cpp: number;
+          routeName: string;
+        }> = [];
+
+        for (const date of candidates) {
+          try {
+            const dayQuery = { ...validated, departureDate: date };
+            const { options: dayOptions } = await cachedFlightAwards(supabase, dayQuery);
+            if (dayOptions.length === 0) continue;
+            const dayCash =
+              (await getCashPriceProvider().getCashPrice(dayQuery).catch(() => null))
+                ?.priceUsd ?? 0;
+            const dayAwards = dayOptions
+              .map((o) => {
+                const program = flexProgramByName.get(o.programName);
+                if (!program) return null;
+                return {
+                  kind: "flight" as const,
+                  program,
+                  milesRequired: o.milesRequired,
+                  taxesAndFees: o.taxesAndFeesUsd,
+                  cashPrice: dayCash,
+                  label: o.airline,
+                  airline: o.airline,
+                  routing: o.routing,
+                  stops: o.stops,
+                  durationMinutes: o.durationMinutes,
+                  source: o.source,
+                };
+              })
+              .filter((x): x is NonNullable<typeof x> => x !== null);
+
+            const dayPlaybook = buildOptimizationPlaybook(
+              flexBalances ?? [],
+              flexPrograms ?? [],
+              flexRates ?? [],
+              { ...dayQuery, type: "flight" as const },
+              dayAwards,
+              { maxAlternatives: 0 }
+            );
+            if (!dayPlaybook) continue;
+            perDate.push({
+              date,
+              options: dayOptions,
+              totalPoints: dayPlaybook.best.totalPoints,
+              cpp: dayPlaybook.best.cpp,
+              routeName: dayPlaybook.best.name,
+            });
+          } catch (err) {
+            console.error(`[${requestId}] flex date ${date} failed:`, err);
+          }
+        }
+
+        if (perDate.length > 0) {
+          // Fewest points wins — that's what the user is optimizing.
+          perDate.sort((a, b) => a.totalPoints - b.totalPoints);
+          const winner = perDate[0];
+          chosenDate = winner.date;
+          options = winner.options;
+          dateOptions = perDate
+            .slice()
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .map((d) => ({
+              date: d.date,
+              totalPoints: d.totalPoints,
+              cpp: d.cpp,
+              routeName: d.routeName,
+              isBest: d.date === winner.date,
+            }));
+        }
       }
 
       if (!options || options.length === 0) {
@@ -197,9 +287,16 @@ export async function POST(request: Request) {
       }
 
       const quote = await getCashPriceProvider()
-        .getCashPrice(validated)
+        .getCashPrice({ ...validated, departureDate: chosenDate })
         .catch(() => null);
       cashPrice = quote?.priceUsd ?? 0;
+
+      // Re-point the engine query and label at whichever date won.
+      chosenDateForResponse = chosenDate;
+      engineQuery = { ...validated, departureDate: chosenDate };
+      queryText =
+        `${validated.origin} → ${validated.destination} (${validated.cabin}, ${validated.passengers} pax)` +
+        (chosenDate !== validated.departureDate ? ` · shifted to ${chosenDate}` : "");
 
       awardInputs = options.map((o) => ({
         programName: o.programName,
@@ -339,10 +436,28 @@ export async function POST(request: Request) {
     );
 
     if (!playbook) {
+      // Surface the cheapest award and what they'd be short, so the client can
+      // ask for card suggestions that actually close THIS gap.
+      const cheapest = [...awardOptions].sort(
+        (a, b) => a.milesRequired - b.milesRequired
+      )[0];
+      const held =
+        (balances ?? []).find((b) => b.program_id === cheapest?.program.id)
+          ?.balance ?? 0;
+      const units = validated.type === "flight" ? validated.passengers : validated.rooms;
+      const needed = cheapest ? cheapest.milesRequired * units : 0;
+
       return NextResponse.json(
         {
           error:
             "We found award options, but none are reachable with your current balances. Add balances on the Points page, then try again.",
+          shortfall:
+            cheapest && needed > held
+              ? {
+                  programName: cheapest.program.name,
+                  gapPoints: needed - held,
+                }
+              : undefined,
         },
         { status: 404 }
       );
@@ -379,7 +494,12 @@ export async function POST(request: Request) {
       `[${requestId}] ${validated.type} playbook for ${queryText} — ${playbook.consideredCount} routes in ${Date.now() - startedAt}ms`
     );
 
-    return NextResponse.json({ playbookId: saved?.id ?? null, playbook });
+    return NextResponse.json({
+      playbookId: saved?.id ?? null,
+      playbook,
+      dateOptions,
+      chosenDate: validated.type === "flight" ? chosenDateForResponse : undefined,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

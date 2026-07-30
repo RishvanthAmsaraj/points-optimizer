@@ -38,6 +38,24 @@ interface PlaybookResult {
   meta: { provider: string; generatedAt: string; disclaimer: string };
 }
 
+interface DateOption {
+  date: string;
+  totalPoints: number;
+  cpp: number;
+  routeName: string;
+  isBest: boolean;
+}
+
+interface CardRec {
+  card: { id: string; name: string; issuer: string; annual_fee: number; signup_bonus_points: number };
+  targetProgramName: string;
+  gapPoints: number;
+  coversGap: boolean;
+  spendRequired: number;
+  annualFee: number;
+  reason: string;
+}
+
 const CABINS = [
   { value: "economy", label: "Economy" },
   { value: "premium_economy", label: "Premium Economy" },
@@ -143,18 +161,28 @@ export default function PlaybookPage() {
   const [result, setResult] = useState<PlaybookResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedAlt, setExpandedAlt] = useState<string | null>(null);
+  const [flexDays, setFlexDays] = useState(0);
+  const [dateOptions, setDateOptions] = useState<DateOption[]>([]);
+  const [chosenDate, setChosenDate] = useState<string | null>(null);
+  const [recs, setRecs] = useState<{ recommendations: CardRec[]; disclosure: string } | null>(null);
+  const [upgradePrompt, setUpgradePrompt] = useState(false);
 
   async function generatePlaybook(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setResult(null);
+    setDateOptions([]);
+    setChosenDate(null);
+    setRecs(null);
+    setUpgradePrompt(false);
 
     const body =
       mode === "flight"
         ? {
             type: "flight",
             ...flight,
+            flexDays,
             returnDate: flight.returnDate || undefined,
           }
         : {
@@ -172,8 +200,23 @@ export default function PlaybookPage() {
       const data = await response.json();
       if (!response.ok) {
         setError(data.error || "Something went wrong building your playbook.");
+        if (data.upgrade) setUpgradePrompt(true);
+        // A 404 means award space exists somewhere but their balances can't
+        // reach it — the one moment a card suggestion is genuinely useful.
+        if (response.status === 404 && data.shortfall) {
+          fetch("/api/recommend", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data.shortfall),
+          })
+            .then((r) => r.json())
+            .then((d) => d.recommendations?.length && setRecs(d))
+            .catch(() => {});
+        }
       } else {
         setResult(data.playbook);
+        setDateOptions(data.dateOptions ?? []);
+        setChosenDate(data.chosenDate ?? null);
       }
     } catch {
       setError("Couldn't reach the server. Check your connection and try again.");
@@ -325,6 +368,30 @@ export default function PlaybookPage() {
                       }
                     />
                   </div>
+                  <div className="sm:col-span-2">
+                    <Label>Date flexibility</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {[0, 1, 2, 3].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setFlexDays(d)}
+                          aria-pressed={flexDays === d}
+                          className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                            flexDays === d
+                              ? "border-primary/60 bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:bg-accent"
+                          }`}
+                        >
+                          {d === 0 ? "Exact date" : `±${d} day${d > 1 ? "s" : ""}`}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Award pricing swings hard day to day — shifting by a day is
+                      often the biggest single saving available.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -434,6 +501,45 @@ export default function PlaybookPage() {
           </div>
         )}
 
+        {upgradePrompt && (
+          <div className="mt-4 rounded-lg border border-primary/40 bg-primary/5 p-4">
+            <p className="text-sm">
+              Premium removes this limit and adds alerts, reverse search, and
+              unlimited trip plans.{" "}
+              <a href="/upgrade" className="text-primary hover:underline">
+                See what&rsquo;s included →
+              </a>
+            </p>
+          </div>
+        )}
+
+        {recs && recs.recommendations.length > 0 && (
+          <div className="mt-6">
+            <h3 className="font-display text-xl">Ways to close the gap</h3>
+            <div className="mt-3 space-y-3">
+              {recs.recommendations.map((r) => (
+                <Card key={r.card.id}>
+                  <CardContent className="p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={r.coversGap ? "success" : "neutral"}>
+                        {r.coversGap ? "Covers the gap" : "Closes most of it"}
+                      </Badge>
+                      <p className="font-medium">{r.card.name}</p>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">{r.reason}</p>
+                    <p className="mt-1 font-mono text-sm">
+                      ${r.annualFee}/yr · ${r.spendRequired.toLocaleString()} spend for the bonus
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              {recs.disclosure}
+            </p>
+          </div>
+        )}
+
         {result && (
           <div className="mt-8 space-y-8">
             <div className="rounded-lg border border-primary/40 bg-card p-5 shadow-[0_0_48px_-16px_hsl(var(--primary)/0.35)] sm:p-8">
@@ -496,6 +602,42 @@ export default function PlaybookPage() {
                 )}
               </div>
             </div>
+
+            {dateOptions.length > 1 && (
+              <div>
+                <h3 className="font-display text-xl">Nearby dates</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Priced against your actual balances, not just the award chart.
+                  {chosenDate && chosenDate !== flight.departureDate
+                    ? ` We built the playbook for ${chosenDate} — the cheapest date we found.`
+                    : ""}
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                  {dateOptions.map((d) => (
+                    <div
+                      key={d.date}
+                      className={`rounded-md border p-3 text-center ${
+                        d.isBest
+                          ? "border-primary/60 bg-primary/10"
+                          : "border-border bg-card"
+                      }`}
+                    >
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {d.date.slice(5)}
+                      </p>
+                      <p className="mt-1 font-mono text-sm">
+                        {Math.round(d.totalPoints / 1000)}k
+                      </p>
+                      {d.cpp > 0 && (
+                        <p className="font-mono text-xs text-success">
+                          {d.cpp.toFixed(1)}¢
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {result.alternatives.length > 0 && (
               <div>

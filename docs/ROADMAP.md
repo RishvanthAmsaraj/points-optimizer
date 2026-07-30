@@ -4,6 +4,16 @@
 
 The codebase now runs end-to-end in mock mode: a user adds cards and balances, asks for a trip, and gets a ranked playbook with real multi-hop transfer math, warnings, and honest value numbers. What separates this from launch is live data (partner keys), data-ops discipline, and payments.
 
+## What's left is not features
+
+The product is feature-complete for launch. The remaining work is business and wiring:
+
+1. **Stripe webhook** — set `subscription_tier` from verified webhook events (the only backend gap that blocks charging money).
+2. **Seats.aero commercial permission** — email them; this gates live award data at commercial scale.
+3. **Data-ops cadence** — someone owns the weekly bonus scan and quarterly valuation review (see DATA_SOURCES.md).
+4. **Legal review** — disclaimers, affiliate disclosure, terms, privacy policy.
+5. **Distribution** — the points community will stress-test data accuracy fast; that's a feature of beta, not a bug.
+
 ## Phase 1 — Live data & private beta
 
 The goal: real playbooks for real routes, tested by ~20 power users from the points community (they will find every data error fast, which is exactly what we want).
@@ -16,11 +26,12 @@ The goal: real playbooks for real routes, tested by ~20 power users from the poi
 
 ## Phase 2 — The features people pay for
 
-- **Transfer bonus alerts** — "Your 140k MR are worth 182k Virgin miles until March 12." This is the highest-leverage retention feature and falls straight out of `bonus_multiplier` + a cron + email.
+- ~~**Transfer bonus alerts**~~ — **done**: promo windows, engine awareness, dashboard surfacing, digest job with dedupe and dry-run mode. Add `RESEND_API_KEY` + a cron schedule to go live.
 - ~~**Hotel awards**~~ — **done**: chart-based hotel award provider (Hyatt/Marriott/Hilton/IHG), Amadeus hotel cash comparison, hotel playbooks in the same engine and UI.
 - **Balance auto-sync** — evaluate AwardWallet's account-linking APIs. This changes our security posture (see DATA_SOURCES.md §4), so it's a deliberate decision, not a default.
-- **Mixed-itinerary optimization** — outbound on one program, return on another. Competitors don't do this well.
-- **Card recommendations** — "you're 60k short for this trip; this card's signup bonus covers it." This is also the monetization bridge (below).
+- **Mixed-itinerary optimization** — outbound on one program, return on another. Competitors don't do this well. (The trip allocator's leg model is the foundation; splitting a round trip into two legs is a small extension.)
+- ~~**"Where can I go?" reverse search**~~ — **done**: `/explore` prices a curated destination catalog against real balances with quota controls.
+- ~~**Card recommendations**~~ — **done**: gap-triggered, integrity-ranked, disclosed. Affiliate wiring is a business decision, not an engineering one.
 
 ## Phase 3 — Scale & concierge
 

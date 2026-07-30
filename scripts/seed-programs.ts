@@ -194,7 +194,14 @@ const programs: ProgramSeed[] = [
   { name: "TAP Miles&Go", type: "airline", alliance: "Star Alliance", point_valuation_cents: 1.20, transfer_partners: [], expiration_policy: "36 months from earning" },
   // Alaska renamed Mileage Plan to Atmos Rewards in 2025. High-value program;
   // notably reachable from Chase/Amex ONLY via the Marriott multi-hop.
-  { name: "Alaska Airlines Atmos Rewards", type: "airline", alliance: "oneworld", point_valuation_cents: 1.45, transfer_partners: [], expiration_policy: "Miles don't expire (account must stay active)" }
+  { name: "Alaska Airlines Atmos Rewards", type: "airline", alliance: "oneworld", point_valuation_cents: 1.45, transfer_partners: [], expiration_policy: "Miles don't expire (account must stay active)" },
+  { name: "Bilt Rewards", type: "bank", alliance: null, point_valuation_cents: 1.80, transfer_partners: [], expiration_policy: "Points don't expire while account is active" },
+  { name: "Wells Fargo Rewards", type: "bank", alliance: null, point_valuation_cents: 1.20, transfer_partners: [], expiration_policy: "Points don't expire while account is open" },
+  { name: "Choice Privileges", type: "hotel", alliance: null, point_valuation_cents: 0.60, transfer_partners: [], expiration_policy: "18 months of inactivity" },
+  { name: "Accor Live Limitless", type: "hotel", alliance: null, point_valuation_cents: 2.20, transfer_partners: [], expiration_policy: "12 months of inactivity" },
+  { name: "Aeromexico Rewards", type: "airline", alliance: "SkyTeam", point_valuation_cents: 1.10, transfer_partners: [], expiration_policy: "24 months of inactivity" },
+  { name: "Copa ConnectMiles", type: "airline", alliance: "Star Alliance", point_valuation_cents: 1.10, transfer_partners: [], expiration_policy: "36 months from earning" },
+  { name: "Air India Maharaja Club", type: "airline", alliance: "Star Alliance", point_valuation_cents: 1.00, transfer_partners: [], expiration_policy: "36 months of inactivity" }
 ];
 
 async function seedPrograms() {

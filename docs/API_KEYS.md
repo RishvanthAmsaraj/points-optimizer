@@ -34,13 +34,27 @@ There's also a sanctioned integration path worth pursuing: Seats.aero runs a **"
 
 **Stripe** — subscriptions. No monthly fee; 2.9% + 30¢ per successful charge. Test mode is free forever. Env vars already stubbed in `.env.example`.
 
-**Resend** — transactional email (confirmations now; transfer-bonus alerts in Phase 2). Free: 3,000 emails/mo, 100/day. resend.com.
+**Resend** — alert digests and transactional email (confirmations now; transfer-bonus alerts in Phase 2). Free: 3,000 emails/mo, 100/day. resend.com.
 
 **Sentry** — error tracking. Free developer tier (5k errors/mo) is plenty for beta. sentry.io.
 
 **PostHog** or **Vercel Web Analytics** — product analytics. PostHog free tier is ~1M events/mo (generous); Vercel's basic analytics are included on Hobby. Pick one, not both.
 
 **UptimeRobot** — free uptime pings on the production URL.
+
+## Wiring the alerts cron (free)
+
+The digest job is at `POST /api/alerts/digest`, protected by `CRON_SECRET`. Without `RESEND_API_KEY` it runs in **dry-run mode** and returns the exact text it would send — so you can test the whole pipeline before signing up for anything.
+
+Vercel Cron (free on Hobby, one job/day) — add to `vercel.json`:
+```json
+{ "crons": [{ "path": "/api/alerts/digest", "schedule": "0 14 * * *" }] }
+```
+Vercel Cron sends no auth header, so either allow the `?secret=` query form (already supported) or check Vercel's `x-vercel-cron` header. A GitHub Actions scheduled workflow with a `curl` and a repo secret is an equally free alternative and easier to test locally.
+
+## Payments — Stripe
+
+`POST /api/checkout` creates a subscription Checkout session over Stripe's REST API (no SDK dependency). Set `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID`. **The remaining piece is the webhook**: `subscription_tier` must only ever be set from a verified `checkout.session.completed` / `customer.subscription.*` webhook, never from the browser returning to a success URL — a redirect doesn't prove payment cleared. That's the last backend wire before charging real money.
 
 ## Deliberately NOT on the list (and why)
 

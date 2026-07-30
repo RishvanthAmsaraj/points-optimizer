@@ -8,11 +8,38 @@ const steps = [
   },
   {
     title: "Name the trip",
-    body: "Route, dates, cabin, seats. We search real award space and the live cash fare to compare against.",
+    body: "Flight, hotel, experience — or ask us where you can go. We price real award space against the live cash fare.",
   },
   {
     title: "Fly the playbook",
-    body: "Exact transfers in order — including two-hop chains and split funding — with every risk flagged before you commit.",
+    body: "Exact transfers in order — two-hop chains, split funding, free-night rules — with every risk flagged before you commit.",
+  },
+];
+
+const features = [
+  {
+    title: "Whole-trip allocation",
+    body: "Flight, hotel, and experience funded from one pool of points, without spending the same points twice. The hardest leg gets funded first.",
+  },
+  {
+    title: "Reverse search",
+    body: "Don't have a destination in mind? We price a curated set of award destinations against your balances and rank what's actually reachable.",
+  },
+  {
+    title: "Your cash-out floor",
+    body: "Every route is measured against what your points are worth as plain cash. When redeeming is the worse deal, we say so.",
+  },
+  {
+    title: "Flexible dates",
+    body: "Shifting a departure by a day often saves more than any transfer trick. We price the whole window against your balances.",
+  },
+  {
+    title: "Bonus and expiry alerts",
+    body: "Transfer bonuses sized to your actual balance, and a warning before an inactive program wipes what you've earned.",
+  },
+  {
+    title: "More than the room",
+    body: "Fifth-night-free rules, suite upgrade instruments, and issuer hotel programs where a cash booking with credits beats the award.",
   },
 ];
 
@@ -149,6 +176,26 @@ export default function Home() {
                 <span className="route-node">{i + 1}</span>
                 <h3 className="mt-4 text-lg font-semibold">{step.title}</h3>
                 <p className="mt-2 text-muted-foreground">{step.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Feature grid */}
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+            What's inside
+          </p>
+          <h2 className="mt-3 max-w-2xl font-display text-3xl sm:text-4xl">
+            Everything the spreadsheet crowd does by hand.
+          </h2>
+          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((f) => (
+              <div key={f.title}>
+                <h3 className="font-display text-xl text-primary">{f.title}</h3>
+                <p className="mt-2 text-muted-foreground">{f.body}</p>
               </div>
             ))}
           </div>

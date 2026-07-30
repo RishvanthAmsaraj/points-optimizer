@@ -9,9 +9,14 @@ import { PlaneGlyph } from "@/components/route-line";
 
 const navItems: Array<{ href: Route; label: string }> = [
   { href: "/dashboard" as Route, label: "Dashboard" },
+  { href: "/trip" as Route, label: "Trips" },
+  { href: "/explore" as Route, label: "Explore" },
+  { href: "/playbook" as Route, label: "Playbook" },
+  { href: "/experiences" as Route, label: "Experiences" },
+  { href: "/alerts" as Route, label: "Alerts" },
   { href: "/points" as Route, label: "Points" },
   { href: "/cards" as Route, label: "Cards" },
-  { href: "/playbook" as Route, label: "Playbook" },
+  { href: "/history" as Route, label: "History" },
 ];
 
 export function Navigation() {
@@ -45,12 +50,12 @@ export function Navigation() {
         </Link>
 
         {user && (
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+          <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Main">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-md px-3 py-2 text-sm transition-colors ${
+                className={`rounded-md px-2.5 py-2 text-sm transition-colors ${
                   pathname === item.href
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
@@ -62,7 +67,7 @@ export function Navigation() {
           </nav>
         )}
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           {user ? (
             <button
               onClick={signOut}
@@ -89,7 +94,7 @@ export function Navigation() {
         </div>
 
         <button
-          className="rounded-md p-2 text-muted-foreground hover:text-foreground md:hidden"
+          className="rounded-md p-2 text-muted-foreground hover:text-foreground lg:hidden"
           onClick={() => setMenuOpen((o) => !o)}
           aria-expanded={menuOpen}
           aria-label="Toggle menu"
@@ -105,7 +110,7 @@ export function Navigation() {
       </div>
 
       {menuOpen && (
-        <nav className="border-t border-border/70 px-4 py-3 md:hidden" aria-label="Mobile">
+        <nav className="border-t border-border/70 px-4 py-3 lg:hidden" aria-label="Mobile">
           <div className="flex flex-col gap-1">
             {(user ? navItems : []).map((item) => (
               <Link

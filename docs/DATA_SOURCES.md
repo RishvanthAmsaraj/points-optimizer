@@ -61,7 +61,15 @@ There is **no licensed API for hotel award pricing** — nothing like Seats.aero
 - Ops cadence addition: verify Hyatt's chart and the dynamic bands quarterly; city-tier table grows as users search new cities (unknown cities default to tier 3 with a wide band).
 - Future upgrades: awayz.com and similar hotel-award search products are potential partners if they open APIs; nothing licensable exists today.
 
-## 5. What we deliberately do NOT collect
+## 5. Experiences — maintained catalog
+
+No API exists, public or licensed, for issuer experience programs (Amex Experiences, Chase Experiences, Capital One Dining/Entertainment) or hotel money-can't-buy inventory (Marriott Bonvoy Moments, Hyatt FIND). They are curated, rotating inventories behind cardholder logins. Competitors ignore the category or link out blindly.
+
+Our approach (`scripts/seed-experiences.ts`): catalog the **recurring, predictable** inventory plus the **fixed-value channels**, then apply the same cents-per-point math as flights and hotels. The insight that makes this valuable: most issuer experience channels redeem near 1¢/pt, which is *worse than cash-out* for Chase and Citi points — so the honest answer is usually "pay cash, keep the points for transfers." Being the tool that says that earns more trust than one that pushes every redemption.
+
+Ops cadence: `verified_at` on every row; re-check quarterly. Channel rates (the `fixed_cpp` rows) change rarely; specific listings rotate, so treat listing rows as planning references with the booking link as source of truth.
+
+## 6. What we deliberately do NOT collect
 
 The privacy stance is a feature, not a limitation, and it's what keeps compliance simple:
 

@@ -5,8 +5,8 @@ Exact steps to verify the app end-to-end in mock mode (no external API keys), wi
 ## One-time setup
 
 1. `.env.local`: copy from `.env.example`, fill in your Supabase URL + anon key + service-role key. Leave `AWARD_PROVIDER=mock`. **Set `PLAYBOOK_FREE_LIMIT=999`** so the free-tier cap doesn't interrupt testing (put it back to 2 before launch).
-2. Apply migrations **001 → 002 → 003** in the Supabase SQL editor (or `supabase db push`).
-3. Seed reference data: `npx tsx scripts/seed-programs.ts` then `npx tsx scripts/seed-transfer-rates.ts` then `npx tsx scripts/seed-cards.ts`. Every line should print ✓ — a "program not found" warning means step order was wrong.
+2. Apply migrations **001 → 002 → 003 → 004 → 005 → 006** in the Supabase SQL editor (or `supabase db push`). Note 005 creates `trips` and `experience_cache`, which the original repo's types referenced but no migration ever created — if you seeded before, re-run it.
+3. Seed reference data **in this order**: `npx tsx scripts/seed-programs.ts`, then `npx tsx scripts/seed-transfer-rates.ts`, then `npx tsx scripts/seed-cards.ts`, then `npx tsx scripts/seed-experiences.ts`. Every line should print ✓ — a "program not found" warning means step order was wrong. You should end up with 41 programs, 87 transfer edges, 31 cards, and 22 experiences.
 4. `npm run dev`, open http://localhost:3000, create an account on /login. (If Supabase email confirmation is on, confirm via the email; for local testing it's easiest to turn confirmation off in Supabase Auth settings.)
 5. Sanity: the landing page CTAs go to /login; after sign-in the nav shows Dashboard / Points / Cards / Playbook; Dashboard shows the "Log your first balance" empty state.
 
@@ -53,6 +53,56 @@ Expected:
 - Alternatives include Hilton (via Amex 1:2), IHG (via Chase), Marriott, and the Chase portal — the portal must **not** win.
 - Verify all of this without the browser: `npx tsx scripts/scenario-check.ts` runs Scenarios A–D and asserts the split-source, two-hop, Hyatt-path, and floor invariants.
 
+## Scenario E — trip planner (the flagship)
+
+**Set balances to exactly:** Chase `150000`, Amex `60000`. Add a last-activity date on one of them (any date ~2 years ago) to exercise expiry warnings.
+**Trips page:** name it anything, keep Flight + Hotel toggled on. Flight JFK → NRT, departure `2026-10-14`, Business, 1 pax. Hotel `TYO` / "Tokyo", `2026-10-14` → `2026-10-17`, 1 room, 2 guests.
+
+Expected:
+- **Both legs funded**, and critically the hotel is solved FIRST even though the flight is listed first — the hotel has narrower funding breadth (Hyatt is Chase-only), so it gets first claim on Chase.
+- The flight then uses **split-source funding** across Chase and Amex, because Chase alone no longer covers it.
+- Summary shows total points, cash, cash avoided, and a blended ¢/pt.
+- "Do it in this order" lists the steps with the warning about transferring out of order.
+- Leftovers line shows the unspent Amex.
+- "Get more than the room" panel lists stay enhancements (Amex FHR comparison, mid-stay rate check, tax note).
+- Verify the invariant headlessly: `npx tsx scripts/trip-allocator-test.ts` proves naive per-leg planning overspends Chase by 22,000 points while the allocator never overspends any program.
+
+**Then try the failure path:** drop Amex to `10000` and re-plan. The hotel should still fund; the flight should appear as a **blocker** with a cash fallback rather than a plan you can't execute.
+
+## Scenario F — reverse search
+
+**Explore page:** From `JFK`, any date ~60 days out, Business, no region filter.
+
+Expected: a ranked grid of reachable destinations with points, ¢/pt, and cash avoided, then a "not yet covered" list showing the cheapest award and what program holds it. Rate-limited to 4 runs/hour by design — each destination is a live award lookup. Re-running the same search is fast because `award_cache` is shared.
+
+## Scenario G — flexible dates
+
+**Playbook page:** JFK → NRT, Business, but set **±3 days**.
+
+Expected: a "Nearby dates" strip of 7 cells showing points (in thousands) and ¢/pt per date, with the winner highlighted, and the playbook built for whichever date needs the fewest points. If a cheaper date wins, the header notes the shift. Each date is priced against your balances, not the raw award chart — a cheap award in a program you can't reach isn't a saving.
+
+## Scenario H — alerts and watches
+
+1. **Alerts page:** add a watch (JFK → NRT, Business, target 2.0¢/pt). Free accounts cap at 2 active watches.
+2. To see a live transfer bonus, set one in SQL:
+   ```sql
+   UPDATE transfer_rates SET bonus_multiplier = 1.30,
+     promo_starts_at = CURRENT_DATE - 7, promo_ends_at = CURRENT_DATE + 21,
+     promo_name = '30% transfer bonus'
+   WHERE from_program_id = (SELECT id FROM loyalty_programs WHERE name = 'Chase Ultimate Rewards')
+     AND to_program_id = (SELECT id FROM loyalty_programs WHERE name = 'World of Hyatt');
+   ```
+   The dashboard and Alerts page should both show it, and any playbook routing through that edge prices the bonus in automatically.
+3. **Expiry:** set a last-activity date ~23 months ago on a hotel balance. The dashboard "Points at risk" card should show it as critical.
+4. **Digest job (dry run):** with `CRON_SECRET` set and no `RESEND_API_KEY`,
+   `curl -X POST "localhost:3000/api/alerts/digest?secret=YOUR_SECRET"` returns `dryRun: true` plus the exact email text it would have sent. Run it twice — the second run should report nothing new, proving dedupe works.
+
+**Important:** an undated `bonus_multiplier > 1` is deliberately ignored by the engine. Without an end date we can't know a bonus is still live, and silently inflating every playbook with a stale bonus is the worst failure this product could have.
+
+## Scenario I — card recommendations
+
+Set balances low (e.g. Chase `20000` only) and run a business-class playbook. Expect the "none reachable" message *plus* a "Ways to close the gap" panel naming cards whose currency reaches the program you were short in, cheapest-to-hold first, each showing annual fee and spend requirement, with the disclosure underneath. Recommendations only ever appear on a real shortfall — never as a standalone offers feed.
+
 ## Other checks
 
 - **Free-tier gate:** set `PLAYBOOK_FREE_LIMIT=1`, restart, run one playbook, run another → the second must be refused with the upgrade message. Restore to 999.
@@ -62,6 +112,10 @@ Expected:
 - **Cache:** run the same query twice; the second response is near-instant (shared `award_cache`, 6h TTL). Different dates re-query the provider.
 - **Validation:** origin "JF" or a past-malformed date must return a clear 400 error message, not a crash.
 - **No balances:** delete all balances, run any playbook → friendly "none of it is reachable with your current balances" message.
+- **Onboarding:** a fresh account can walk `/onboarding` (home airport → balances → finish) and land on a populated dashboard. Both steps are skippable.
+- **History:** `/history` lists saved trips and playbooks; clicking either opens a snapshot detail view with the full step list.
+- **Experiences:** `/experiences` groups channels and city listings, and labels anything at-or-below your cash-out floor as a poor redemption.
+- **Upgrade:** `/upgrade` renders both tiers; without Stripe keys the button returns a clear "payments aren't configured" message rather than an error.
 - **Mobile:** at ~375px width, the nav collapses to the menu button, forms stack to one column, the ticket card stays readable.
 - **Signed-out access:** /dashboard redirects to /login; the landing page and its buttons all work signed-out.
 

@@ -10,7 +10,10 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public > src/lib/database.types.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "seed:experiences": "tsx scripts/seed-experiences.ts",
+    "test:engine": "tsx scripts/engine-smoke-test.ts && tsx scripts/scenario-check.ts && tsx scripts/trip-allocator-test.ts && tsx scripts/feature-check.ts",
+    "seed:all": "tsx scripts/seed-programs.ts && tsx scripts/seed-transfer-rates.ts && tsx scripts/seed-cards.ts && tsx scripts/seed-experiences.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

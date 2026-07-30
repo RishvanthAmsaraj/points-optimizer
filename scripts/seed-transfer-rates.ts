@@ -15,6 +15,10 @@ interface TransferRateSeed {
   block_bonus?: number;
   /** Transfer increment (defaults to 1000). */
   increment?: number;
+  /** Promo window — bonus_multiplier only applies between these dates. */
+  promo_starts_at?: string;
+  promo_ends_at?: string;
+  promo_name?: string;
 }
 
 const transferRates: TransferRateSeed[] = [
@@ -102,6 +106,37 @@ const transferRates: TransferRateSeed[] = [
   { from_program: "Marriott Bonvoy", to_program: "Air Canada Aeroplan", ratio: 0.3333, is_reversible: false, typical_timing: "3-5 days", minimum_transfer: 3000, bonus_multiplier: 1.00, block_size: 60000, block_bonus: 5000, increment: 3000 },
   { from_program: "Marriott Bonvoy", to_program: "Singapore Airlines KrisFlyer", ratio: 0.3333, is_reversible: false, typical_timing: "3-5 days", minimum_transfer: 3000, bonus_multiplier: 1.00, block_size: 60000, block_bonus: 5000, increment: 3000 },
   { from_program: "Marriott Bonvoy", to_program: "British Airways Executive Club", ratio: 0.3333, is_reversible: false, typical_timing: "3-5 days", minimum_transfer: 3000, bonus_multiplier: 1.00, block_size: 60000, block_bonus: 5000, increment: 3000 },
+  // ---------------------------------------------------------------------------
+  // Bilt Rewards — 1:1 to a wide partner set, notable for Hyatt and Alaska
+  // access from a no-annual-fee card. Verify partner list quarterly.
+  // ---------------------------------------------------------------------------
+  { from_program: "Bilt Rewards", to_program: "World of Hyatt", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "Alaska Airlines Atmos Rewards", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "American Airlines AAdvantage", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "United MileagePlus", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "Air Canada Aeroplan", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "Air France-KLM Flying Blue", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "Virgin Atlantic Flying Club", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "Turkish Airlines Miles&Smiles", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "Marriott Bonvoy", ratio: 1.00, is_reversible: false, typical_timing: "Same day", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "IHG One Rewards", ratio: 1.00, is_reversible: false, typical_timing: "Same day", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Bilt Rewards", to_program: "Accor Live Limitless", ratio: 1.00, is_reversible: false, typical_timing: "Same day", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+
+  // Wells Fargo Rewards — smaller partner set; Choice at 1:3 is the outlier
+  { from_program: "Wells Fargo Rewards", to_program: "Air France-KLM Flying Blue", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Wells Fargo Rewards", to_program: "British Airways Executive Club", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Wells Fargo Rewards", to_program: "Iberia Plus", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Wells Fargo Rewards", to_program: "Aer Lingus AerClub", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Wells Fargo Rewards", to_program: "Choice Privileges", ratio: 3.00, is_reversible: false, typical_timing: "Same day", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Wells Fargo Rewards", to_program: "Avianca LifeMiles", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+
+  // Additional Amex/Chase/Citi partners filling out the graph
+  { from_program: "Amex Membership Rewards", to_program: "Accor Live Limitless", ratio: 0.50, is_reversible: false, typical_timing: "Same day", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Citi ThankYou Points", to_program: "Choice Privileges", ratio: 2.00, is_reversible: false, typical_timing: "Same day", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Capital One Miles", to_program: "Accor Live Limitless", ratio: 0.50, is_reversible: false, typical_timing: "Same day", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Capital One Miles", to_program: "Aeromexico Rewards", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Capital One Miles", to_program: "Copa ConnectMiles", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 },
+  { from_program: "Chase Ultimate Rewards", to_program: "Air India Maharaja Club", ratio: 1.00, is_reversible: false, typical_timing: "Instant", minimum_transfer: 1000, bonus_multiplier: 1.00 }
 ];
 
 async function seedTransferRates() {
@@ -150,7 +185,10 @@ async function seedTransferRates() {
         bonus_multiplier: rate.bonus_multiplier,
         block_size: rate.block_size ?? 0,
         block_bonus: rate.block_bonus ?? 0,
-        increment: rate.increment ?? 1000
+        increment: rate.increment ?? 1000,
+        promo_starts_at: rate.promo_starts_at ?? null,
+        promo_ends_at: rate.promo_ends_at ?? null,
+        promo_name: rate.promo_name ?? null
       }, { onConflict: 'from_program_id, to_program_id' });
 
     if (error) {

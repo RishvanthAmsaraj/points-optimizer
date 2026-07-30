@@ -37,19 +37,31 @@ export interface HotelQuery {
   guests: number;
 }
 
-export type TravelQuery = FlightQuery | HotelQuery;
+export interface ExperienceQuery {
+  type: "experience";
+  cityCode: string;
+  cityName?: string;
+  category: "dining" | "events" | "tours" | "any";
+  /** Number of people / tickets. */
+  quantity: number;
+  date?: string;
+}
+
+export type TravelQuery = FlightQuery | HotelQuery | ExperienceQuery;
 
 /** How many award units the trip needs: per-passenger for flights;
  *  hotel providers already return per-stay totals (per room). */
 function unitsFor(query: TravelQuery): number {
-  return query.type === "flight" ? query.passengers : query.rooms;
+  if (query.type === "flight") return query.passengers;
+  if (query.type === "hotel") return query.rooms;
+  return query.quantity;
 }
 
 /** One bookable award, already resolved to a loyalty_programs row.
  *  Flights: amounts are PER PASSENGER. Hotels: amounts are PER ROOM for
  *  the whole stay (the provider totals nights). */
 export interface AwardOption {
-  kind: "flight" | "hotel";
+  kind: "flight" | "hotel" | "experience";
   program: LoyaltyProgram;
   /** Points/miles required per unit (see above). */
   milesRequired: number;
@@ -68,6 +80,11 @@ export interface AwardOption {
   /** Hotel-only details. */
   nights?: number;
   city?: string;
+  /** Experience-only details. */
+  category?: string;
+  /** Fixed-value redemptions (portals, experiences) can't beat their own
+   *  rate, so the engine labels them rather than pretending they're awards. */
+  isFixedValue?: boolean;
   source: string;
 }
 
@@ -133,9 +150,31 @@ interface EngineOptions {
 // Transfer math
 // ---------------------------------------------------------------------------
 
+/**
+ * Effective multiplier for an edge, honoring the promo window.
+ *
+ * A bonus only counts when it is inside [promo_starts_at, promo_ends_at].
+ * An UNDATED multiplier > 1 is deliberately ignored: without an end date we
+ * can't know it's still live, and silently inflating every playbook with a
+ * stale bonus is the worst failure mode this product could have.
+ */
+export function effectiveMultiplier(rate: TransferRate, now = new Date()): number {
+  const multiplier = Number(rate.bonus_multiplier ?? 1);
+  if (multiplier === 1) return 1;
+  if (!rate.promo_ends_at) return 1;
+  if (new Date(rate.promo_ends_at) < now) return 1;
+  if (rate.promo_starts_at && new Date(rate.promo_starts_at) > now) return 1;
+  return multiplier;
+}
+
+/** True when this edge currently has a live, dated promo. */
+export function hasActivePromo(rate: TransferRate, now = new Date()): boolean {
+  return effectiveMultiplier(rate, now) > 1;
+}
+
 /** Destination points yielded by transferring `sourceAmount` along an edge. */
 function transferYield(rate: TransferRate, sourceAmount: number): number {
-  const base = Math.floor(sourceAmount * Number(rate.ratio) * Number(rate.bonus_multiplier));
+  const base = Math.floor(sourceAmount * Number(rate.ratio) * effectiveMultiplier(rate));
   const blocks =
     rate.block_size > 0 ? Math.floor(sourceAmount / rate.block_size) * rate.block_bonus : 0;
   return base + blocks;
@@ -148,7 +187,7 @@ function transferYield(rate: TransferRate, sourceAmount: number): number {
  */
 function sourcePointsNeeded(rate: TransferRate, needed: number): number | null {
   if (needed <= 0) return 0;
-  const effRatio = Number(rate.ratio) * Number(rate.bonus_multiplier);
+  const effRatio = Number(rate.ratio) * effectiveMultiplier(rate);
   if (effRatio <= 0) return null;
 
   const increment = Math.max(rate.increment || 1000, 1);
@@ -280,8 +319,8 @@ function findFundingPlans(
       // Drain best-value sources first (highest effective ratio loses least).
       .sort(
         (a, b) =>
-          Number(b.rate.ratio) * Number(b.rate.bonus_multiplier) -
-          Number(a.rate.ratio) * Number(a.rate.bonus_multiplier)
+          Number(b.rate.ratio) * effectiveMultiplier(b.rate) -
+          Number(a.rate.ratio) * effectiveMultiplier(a.rate)
       );
 
     let still = remaining;
@@ -356,7 +395,15 @@ function planToPath(
           pointsToTransfer: hop.sourceAmount,
           pointsArriving: hop.arriving,
           ratio: Number(hop.rate.ratio),
-          bonusMultiplier: Number(hop.rate.bonus_multiplier),
+          bonusMultiplier: effectiveMultiplier(hop.rate),
+          promoNote: hasActivePromo(hop.rate)
+            ? (hop.rate.promo_name ??
+              `${Math.round((effectiveMultiplier(hop.rate) - 1) * 100)}% transfer bonus active${
+                hop.rate.promo_ends_at ? ` through ${hop.rate.promo_ends_at}` : ""
+              }`)
+            : null,
+          promoName: hasActivePromo(hop.rate) ? hop.rate.promo_name : null,
+          promoEndsAt: hasActivePromo(hop.rate) ? hop.rate.promo_ends_at : null,
           blockBonus:
             hop.rate.block_size > 0
               ? `${hop.rate.block_bonus.toLocaleString()} bonus per ${hop.rate.block_size.toLocaleString()} transferred`
@@ -372,7 +419,7 @@ function planToPath(
           `Transfers from ${hop.from.name} to ${hop.to.name} cannot be reversed — confirm the award space is bookable before transferring.`
         );
       }
-      const effRatio = Number(hop.rate.ratio) * Number(hop.rate.bonus_multiplier);
+      const effRatio = Number(hop.rate.ratio) * effectiveMultiplier(hop.rate);
       if (effRatio < 0.9) {
         warnings.push(
           `The ${hop.from.name} → ${hop.to.name} hop converts at roughly ${effRatio.toFixed(2)}:1 — you lose points on this step, so only do it if the redemption still comes out ahead.`
@@ -408,14 +455,23 @@ function planToPath(
               cabin: query.type === "flight" ? query.cabin : undefined,
             },
           }
-        : {
-            hotel: {
-              label: award.label,
-              city: award.city,
-              nights: award.nights,
-              rooms: units,
-            },
-          }),
+        : award.kind === "hotel"
+          ? {
+              hotel: {
+                label: award.label,
+                city: award.city,
+                nights: award.nights,
+                rooms: units,
+              },
+            }
+          : {
+              experience: {
+                label: award.label,
+                city: award.city,
+                category: award.category,
+                quantity: units,
+              },
+            }),
     },
   });
 
@@ -434,6 +490,25 @@ function planToPath(
             ...plan.chains[0].map((h) => h.from.name),
             award.program.name,
           ].join(" → ");
+
+  // Honesty rule for fixed-value redemptions (experiences, portal-style
+  // bookings): they can never beat their own published rate, so if that rate
+  // is at or barely above what the same points fetch as cash, say so plainly.
+  if (award.isFixedValue) {
+    const bestFloorCpp = Math.max(
+      0,
+      ...[...breakdown.keys()].map((name) => REDEMPTION_FLOORS[name] ?? 0)
+    );
+    const fixedCpp =
+      totalCashPrice > 0 && milesNeeded > 0
+        ? ((totalCashPrice - totalFees) / milesNeeded) * 100
+        : 0;
+    if (bestFloorCpp > 0 && fixedCpp > 0 && fixedCpp <= bestFloorCpp * 1.35) {
+      warnings.push(
+        `This is a fixed-value redemption at about ${fixedCpp.toFixed(2)}¢ per point — barely above the ${bestFloorCpp.toFixed(2)}¢ you'd get cashing the same points out. Paying cash and saving these points for flights or hotel awards will almost always be worth more.`
+      );
+    }
+  }
 
   const floorValueUsd = [...breakdown.entries()].reduce((sum, [name, amount]) => {
     const cpp = REDEMPTION_FLOORS[name];
