@@ -86,7 +86,7 @@ CREATE POLICY "Anyone can read experiences"
 CREATE INDEX idx_experiences_lookup
   ON experiences (city_code, category, is_active);
 CREATE UNIQUE INDEX idx_experiences_unique
-  ON experiences (name, program_name, COALESCE(city_code, ''));
+  ON experiences (name, program_name, city_code);
 
 -- ---------------------------------------------------------------------------
 -- 2b. Experience cache (shared market data, mirrors award_cache/hotel_cache)
